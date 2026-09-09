@@ -40,9 +40,11 @@ app.get('/users', async (req: Request, res: Response) => {
         accounts: {
           include: {
             transactions: {
-              orderBy: { date: 'desc' }
+              orderBy: { date: 'desc' },
+              include: { category: true }
             }
           }
+          
         },
       },
     });
@@ -203,6 +205,50 @@ app.delete('/transactions/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al eliminar el movimiento' });
+  }
+});
+
+// 11. Ruta para eliminar una categoría
+app.delete('/categories/:id', async (req: Request, res: Response) => {
+  try {
+    const categoryId = parseInt(req.params.id as string, 10);
+
+    // 1. Desvinculamos esta categoría de cualquier transacción (evita error de clave foránea)
+    await prisma.transaction.updateMany({
+      where: { categoryId: categoryId },
+      data: { categoryId: null },
+    });
+
+    // 2. Ahora sí, borramos la categoría de la base de datos
+    await prisma.category.delete({
+      where: { id: categoryId },
+    });
+
+    res.json({ message: 'Categoría eliminada con éxito' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar la categoría' });
+  }
+});
+
+// 12. Ruta para actualizar la categoría de una transacción
+app.patch('/transactions/:id/category', async (req: Request, res: Response) => {
+  try {
+    const transactionId = parseInt(req.params.id as string, 10);
+    const { categoryId } = req.body; // Puede ser un número o vacío (null)
+
+    const updatedTx = await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { 
+        // Si nos envían un texto vacío, lo convertimos a null para quitarle la categoría
+        categoryId: categoryId ? parseInt(categoryId, 10) : null 
+      },
+    });
+
+    res.json(updatedTx);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar la categoría' });
   }
 });
 
