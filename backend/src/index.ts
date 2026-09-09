@@ -39,12 +39,12 @@ app.get('/users', async (req: Request, res: Response) => {
       include: {
         accounts: {
           include: {
+            assets: true,
             transactions: {
               orderBy: { date: 'desc' },
-              include: { category: true }
+              include: { category: true, asset: true }
             }
           }
-          
         },
       },
     });
@@ -73,32 +73,42 @@ app.post('/accounts', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Ruta para registrar una transacción (Ingreso/Gasto)
+// 5. Ruta para registrar una transacción (Ingreso/Gasto/Inversión)
 app.post('/transactions', async (req: Request, res: Response) => {
   try {
-
-    const { amount, type, description, accountId, categoryId } = req.body; 
+    // 1. Extraemos también el assetId del body
+    const { amount, type, description, accountId, categoryId, assetId } = req.body; 
 
     const balanceChange = type === 'EXPENSE' ? -amount : amount;
 
-    const result = await prisma.$transaction([
+    // 2. Preparamos las operaciones básicas (Crear transacción y actualizar cuenta)
+    const operations: any[] = [
       prisma.transaction.create({
-        // Y lo añadimos aquí en la data
-        data: { amount, type, description, accountId, categoryId }, 
+        data: { amount, type, description, accountId, categoryId, assetId }, 
       }),
-
-      // C. Actualizamos el saldo de la cuenta
       prisma.account.update({
         where: { id: accountId },
         data: { balance: { increment: balanceChange } },
       })
-      
-    ]);
+    ];
 
-    // result[0] es la transacción creada, result[1] es la cuenta actualizada
+    // 3. NUEVO: Si el movimiento es de un activo, añadimos su actualización a la lista
+    if (assetId) {
+      operations.push(
+        prisma.asset.update({
+          where: { id: assetId },
+          data: { balance: { increment: balanceChange } },
+        })
+      );
+    }
+
+    // 4. Ejecutamos todas las operaciones a la vez
+    const result = await prisma.$transaction(operations);
+
+    // result[0] siempre será la transacción creada
     res.status(201).json(result[0]); 
   } catch (error) {
-    console.error(error); // Añadimos esto para ver el error real en la terminal si algo falla
+    console.error(error); 
     res.status(400).json({ error: 'Error al registrar la transacción' });
   }
 });
@@ -249,6 +259,58 @@ app.patch('/transactions/:id/category', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar la categoría' });
+  }
+});
+
+// 13. Ruta para eliminar una cuenta y sus transacciones
+app.delete('/accounts/:id', async (req: Request, res: Response) => {
+  try {
+    const accountId = parseInt(req.params.id as string, 10);
+
+    // 1. Primero borramos todos los movimientos asociados a esta cuenta para no dejar datos huérfanos
+    await prisma.transaction.deleteMany({
+      where: { accountId: accountId }
+    });
+
+    // 2. Ahora ya podemos borrar la cuenta de forma segura
+    await prisma.account.delete({
+      where: { id: accountId }
+    });
+
+    res.json({ message: 'Cuenta y movimientos eliminados con éxito' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar la cuenta' });
+  }
+});
+
+// 14. Ruta para añadir un nuevo activo (fondo/cripto) a una cuenta
+app.post('/assets', async (req: Request, res: Response) => {
+  try {
+    const { name, symbol, balance, accountId } = req.body;
+    
+    // Creamos el activo
+    const newAsset = await prisma.asset.create({
+      data: {
+        name,
+        symbol,
+        balance,
+        accountId,
+      },
+    });
+
+    // Sumamos el valor inicial de este activo al saldo total de la cuenta
+    if (balance > 0) {
+      await prisma.account.update({
+        where: { id: accountId },
+        data: { balance: { increment: balance } }
+      });
+    }
+
+    res.status(201).json(newAsset);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear el activo' });
   }
 });
 

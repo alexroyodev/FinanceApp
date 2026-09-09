@@ -29,6 +29,7 @@ model Account {
   balance      Float         @default(0.0) 
   userId       Int
   user         User          @relation(fields: [userId], references: [id])
+  assets       Asset[]
   
   transactions Transaction[] 
   
@@ -38,6 +39,16 @@ model Account {
 enum TransactionType {
   INCOME
   EXPENSE
+}
+
+model Asset {
+  id           Int           @id @default(autoincrement())
+  name         String        // Ej: "Bitcoin", "Fondo Indexado S&P 500"
+  symbol       String?       // Ej: "BTC", "SPY" (Opcional)
+  balance      Float         @default(0) // Dinero actual invertido aquí
+  accountId    Int
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
 }
 
 model Category {
@@ -60,6 +71,9 @@ model Transaction {
 
   categoryId  Int?
   category    Category?       @relation(fields: [categoryId], references: [id])
+
+  assetId     Int?
+  asset       Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
