@@ -1,11 +1,12 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import cors from 'cors';
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
-// Middleware para que Express entienda peticiones con cuerpo JSON
+app.use(cors());
 app.use(express.json());
 
 // 1. Ruta de prueba (Health check)
@@ -36,7 +37,13 @@ app.get('/users', async (req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       include: {
-        accounts: true, // Esto hace un JOIN automático con las cuentas del usuario
+        accounts: {
+          include: {
+            transactions: {
+              orderBy: { date: 'desc' }
+            }
+          }
+        },
       },
     });
     res.json(users);
@@ -159,6 +166,43 @@ app.get('/users/:id/net-worth', async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error al calcular el patrimonio total' });
+  }
+});
+
+// 10. Ruta para eliminar una transacción y recalcular saldo
+app.delete('/transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const transactionId = parseInt(req.params.id as string, 10);
+
+    // 1. Buscamos el movimiento para saber cuánto dinero era y de qué cuenta
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transacción no encontrada' });
+    }
+
+    // 2. Calculamos la operación inversa
+    // Si fue un Gasto (-), ahora sumamos el dinero a la cuenta (+).
+    // Si fue un Ingreso (+), ahora restamos el dinero (-).
+    const balanceCorrection = transaction.type === 'EXPENSE' ? transaction.amount : -transaction.amount;
+
+    // 3. Ejecutamos ambas acciones juntas (ACID)
+    await prisma.$transaction([
+      prisma.transaction.delete({
+        where: { id: transactionId },
+      }),
+      prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { increment: balanceCorrection } },
+      }),
+    ]);
+
+    res.json({ message: 'Movimiento eliminado y saldo recalculado' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar el movimiento' });
   }
 });
 

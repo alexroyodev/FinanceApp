@@ -76,3 +76,6 @@ Content-Type: application/json
   "accountId": 1,
   "categoryId": 1
 }
+
+### Ver Patrimonio Total del usuario 1
+GET http://localhost:3000/users/1/net-worth
