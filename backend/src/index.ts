@@ -135,6 +135,33 @@ app.get('/categories', async (req: Request, res: Response) => {
   res.json(categories);
 });
 
+// 9. Ruta para calcular el patrimonio total de un usuario
+app.get('/users/:id/net-worth', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Le pedimos a PostgreSQL que sume la columna 'balance' de todas las cuentas del usuario
+    const aggregation = await prisma.account.aggregate({
+      _sum: {
+        balance: true,
+      },
+      where: {
+        userId: Number(id),
+      },
+    });
+
+    // Si el usuario no tiene cuentas, la suma devuelve null, así que le ponemos 0 por defecto
+    const totalNetWorth = aggregation._sum.balance || 0;
+
+    res.json({ 
+      userId: Number(id),
+      totalNetWorth: totalNetWorth 
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al calcular el patrimonio total' });
+  }
+});
+
 // Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
