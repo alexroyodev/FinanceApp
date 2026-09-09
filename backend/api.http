@@ -1,0 +1,78 @@
+### Crear un nuevo usuario
+POST http://localhost:3000/users
+Content-Type: application/json
+
+{
+  "email": "alejandro@ejemplo.com",
+  "name": "Alejandro"
+}
+
+### Obtener todos los usuarios y sus cuentas
+GET http://localhost:3000/users
+
+
+### Crear cuenta de MyInvestor
+POST http://localhost:3000/accounts
+Content-Type: application/json
+
+{
+  "name": "MyInvestor - Fondo Indexado",
+  "balance": 1500.00,
+  "userId": 1
+}
+
+### Crear cuenta de Bitvavo
+POST http://localhost:3000/accounts
+Content-Type: application/json
+
+{
+  "name": "Bitvavo - Cripto",
+  "balance": 350.75,
+  "userId": 1
+}
+
+### Registrar un Ingreso (Sueldo)
+POST http://localhost:3000/transactions
+Content-Type: application/json
+
+{
+  "amount": 2000.00,
+  "type": "INCOME",
+  "description": "Nómina de Agosto",
+  "accountId": 1
+}
+
+### Registrar un Gasto (Compra)
+POST http://localhost:3000/transactions
+Content-Type: application/json
+
+{
+  "amount": 65.50,
+  "type": "EXPENSE",
+  "description": "Compra Mercadona",
+  "accountId": 1
+}
+
+### Ver extracto de la cuenta 1
+GET http://localhost:3000/accounts/1
+
+
+### Crear categoría Comida
+POST http://localhost:3000/categories
+Content-Type: application/json
+
+{
+  "name": "Supermercado"
+}
+
+### Registrar un Gasto con Categoría
+POST http://localhost:3000/transactions
+Content-Type: application/json
+
+{
+  "amount": 45.00,
+  "type": "EXPENSE",
+  "description": "Compra Lidl",
+  "accountId": 1,
+  "categoryId": 1
+}
