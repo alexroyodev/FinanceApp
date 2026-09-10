@@ -73,40 +73,64 @@ app.post('/accounts', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Ruta para registrar una transacción (Ingreso/Gasto/Inversión)
+// 5. Ruta para registrar una transacción (Ingreso, Gasto o Aportación cruzada)
 app.post('/transactions', async (req: Request, res: Response) => {
   try {
-    // 1. Extraemos también el assetId del body
-    const { amount, type, description, accountId, categoryId, assetId } = req.body; 
+    const { amount, type, description, accountId, categoryId, assetId, originAccountId } = req.body; 
 
-    const balanceChange = type === 'EXPENSE' ? -amount : amount;
+    // 1. ¿Cómo afecta a la cuenta destino?
+    let accountBalanceChange = 0;
+    if (type === 'INCOME') accountBalanceChange = amount;
+    if (type === 'EXPENSE' || type === 'TRANSFER_OUT') accountBalanceChange = -amount;
+    
+    // Si es Aportación, el dinero solo SUMA en la cuenta destino si viene desde otra cuenta distinta
+    if (type === 'CONTRIBUTION') {
+      if (originAccountId && originAccountId !== accountId) {
+        accountBalanceChange = amount; 
+      } else {
+        accountBalanceChange = 0; // Si es en la misma cuenta, solo se mueve de liquidez a invertido
+      }
+    }
 
-    // 2. Preparamos las operaciones básicas (Crear transacción y actualizar cuenta)
-    const operations: any[] = [
+    const operations: any[] = [];
+
+    // 2. Si viene de otra cuenta, creamos una transacción de "Salida" y restamos el dinero origen
+    if (type === 'CONTRIBUTION' && originAccountId && originAccountId !== accountId) {
+      operations.push(
+        prisma.transaction.create({
+          data: { amount, type: 'TRANSFER_OUT', description: `Traspaso a ${description}`, accountId: originAccountId }
+        }),
+        prisma.account.update({
+          where: { id: originAccountId },
+          data: { balance: { increment: -amount } }
+        })
+      );
+    }
+
+    // 3. Creamos la transacción principal en la cuenta destino
+    operations.push(
       prisma.transaction.create({
         data: { amount, type, description, accountId, categoryId, assetId }, 
       }),
       prisma.account.update({
         where: { id: accountId },
-        data: { balance: { increment: balanceChange } },
+        data: { balance: { increment: accountBalanceChange } },
       })
-    ];
+    );
 
-    // 3. NUEVO: Si el movimiento es de un activo, añadimos su actualización a la lista
+    // 4. Si es un activo, sumamos/restamos a su valor total
     if (assetId) {
+      const assetBalanceChange = (type === 'EXPENSE' || type === 'TRANSFER_OUT') ? -amount : amount;
       operations.push(
         prisma.asset.update({
           where: { id: assetId },
-          data: { balance: { increment: balanceChange } },
+          data: { balance: { increment: assetBalanceChange } },
         })
       );
     }
 
-    // 4. Ejecutamos todas las operaciones a la vez
     const result = await prisma.$transaction(operations);
-
-    // result[0] siempre será la transacción creada
-    res.status(201).json(result[0]); 
+    res.status(201).json(result[result.length - 1]); 
   } catch (error) {
     console.error(error); 
     res.status(400).json({ error: 'Error al registrar la transacción' });
@@ -181,40 +205,43 @@ app.get('/users/:id/net-worth', async (req: Request, res: Response) => {
   }
 });
 
-// 10. Ruta para eliminar una transacción y recalcular saldo
+// 10. Ruta para eliminar una transacción y revertir matemáticas
 app.delete('/transactions/:id', async (req: Request, res: Response) => {
   try {
     const transactionId = parseInt(req.params.id as string, 10);
+    const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    if (!transaction) return res.status(404).json({ error: 'Transacción no encontrada' });
 
-    // 1. Buscamos el movimiento para saber cuánto dinero era y de qué cuenta
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: transactionId },
-    });
+    // Operación matemática inversa para la cuenta
+    let accountBalanceCorrection = 0;
+    if (transaction.type === 'INCOME') accountBalanceCorrection = -transaction.amount;
+    if (transaction.type === 'EXPENSE') accountBalanceCorrection = transaction.amount;
+    
+    // Operación matemática inversa para el activo
+    const assetBalanceCorrection = transaction.type === 'EXPENSE' ? transaction.amount : -transaction.amount;
 
-    if (!transaction) {
-      return res.status(404).json({ error: 'Transacción no encontrada' });
-    }
-
-    // 2. Calculamos la operación inversa
-    // Si fue un Gasto (-), ahora sumamos el dinero a la cuenta (+).
-    // Si fue un Ingreso (+), ahora restamos el dinero (-).
-    const balanceCorrection = transaction.type === 'EXPENSE' ? transaction.amount : -transaction.amount;
-
-    // 3. Ejecutamos ambas acciones juntas (ACID)
-    await prisma.$transaction([
-      prisma.transaction.delete({
-        where: { id: transactionId },
-      }),
+    const operations: any[] = [
+      prisma.transaction.delete({ where: { id: transactionId } }),
       prisma.account.update({
         where: { id: transaction.accountId },
-        data: { balance: { increment: balanceCorrection } },
-      }),
-    ]);
+        data: { balance: { increment: accountBalanceCorrection } },
+      })
+    ];
 
-    res.json({ message: 'Movimiento eliminado y saldo recalculado' });
+    if (transaction.assetId) {
+      operations.push(
+        prisma.asset.update({
+          where: { id: transaction.assetId },
+          data: { balance: { increment: assetBalanceCorrection } },
+        })
+      );
+    }
+
+    await prisma.$transaction(operations);
+    res.json({ message: 'Movimiento eliminado' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al eliminar el movimiento' });
+    res.status(500).json({ error: 'Error al eliminar' });
   }
 });
 
@@ -311,6 +338,26 @@ app.post('/assets', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al crear el activo' });
+  }
+});
+
+// 15. Ruta para eliminar un Activo (Fondo/Cripto)
+app.delete('/assets/:id', async (req: Request, res: Response) => {
+  try {
+    const assetId = parseInt(req.params.id as string, 10);
+    // Buscamos cuánto dinero tenía para quitárselo a la cuenta general y cuadrar las cuentas
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    if (asset) {
+      await prisma.account.update({
+        where: { id: asset.accountId },
+        data: { balance: { decrement: asset.balance } }
+      });
+    }
+    await prisma.asset.delete({ where: { id: assetId } });
+    res.json({ message: 'Activo eliminado' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar activo' });
   }
 });
 

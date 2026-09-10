@@ -39,6 +39,8 @@ model Account {
 enum TransactionType {
   INCOME
   EXPENSE
+  CONTRIBUTION
+  TRANSFER_OUT
 }
 
 model Asset {
