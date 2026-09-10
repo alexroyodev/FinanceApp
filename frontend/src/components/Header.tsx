@@ -12,7 +12,7 @@ export default function Header({ user, activeTab, setActiveTab, isDarkMode, setI
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', bgColor: 'bg-blue-600' },
     { id: 'transactions', label: 'Movimientos', bgColor: 'bg-blue-600' },
-    { id: 'investments', label: 'Inversiones', bgColor: 'bg-indigo-600' },
+    { id: 'investments', label: 'Inversiones', bgColor: 'bg-blue-600' }, // 👈 Cambiado a azul
     { id: 'accounts', label: 'Cuentas', bgColor: 'bg-blue-600' },
     { id: 'analytics', label: 'Estadísticas', bgColor: 'bg-blue-600' }
   ];
@@ -23,7 +23,6 @@ export default function Header({ user, activeTab, setActiveTab, isDarkMode, setI
         <UserButton afterSignOutUrl="/" />
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">Hola, {user.name} 👋</h1>
         
-        {/* 👇 EL BOTÓN DE CAMBIO DE TEMA */}
         <button 
           onClick={() => setIsDarkMode(!isDarkMode)} 
           className="ml-2 p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-xl hover:scale-110 transition-transform shadow-sm"

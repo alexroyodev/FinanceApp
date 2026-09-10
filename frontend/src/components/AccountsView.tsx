@@ -15,20 +15,58 @@ export default function AccountsView({ user, onDataChange }: AccountsViewProps) 
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountName.trim() || !newAccountBalance) return;
+
+    if (parseFloat(newAccountBalance) < 0) {
+      toast.error('El saldo inicial no puede ser negativo');
+      return;
+    }
+
+    const loadingToast = toast.loading('Creando cuenta...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newAccountName, balance: parseFloat(newAccountBalance), userId: user.id }) });
-      if (res.ok) { setNewAccountName(''); setNewAccountBalance(''); toast.success('Cuenta creada'); onDataChange(); }
-    } catch (err) { toast.error('Error al crear cuenta'); }
+      const res = await fetch('http://localhost:3000/accounts', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ name: newAccountName.trim(), balance: parseFloat(newAccountBalance), userId: user.id }) 
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        setNewAccountName(''); 
+        setNewAccountBalance(''); 
+        toast.success('Cuenta creada con éxito', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al crear la cuenta', { id: loadingToast });
+      }
+    } catch (err) { 
+      toast.error('Error de conexión con el servidor', { id: loadingToast }); 
+    }
   };
 
   const handleDeleteAccount = async (id: number) => {
     if (!window.confirm('🚨 ¡ATENCIÓN! Se borrarán todos los movimientos y activos asociados.')) return;
+    
+    const loadingToast = toast.loading('Eliminando cuenta...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/accounts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { toast.success('Cuenta eliminada'); onDataChange(); }
-    } catch (err) { toast.error('Error al eliminar'); }
+      const res = await fetch(`http://localhost:3000/accounts/${id}`, { 
+        method: 'DELETE', 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        toast.success('Cuenta y movimientos eliminados', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al eliminar', { id: loadingToast });
+      }
+    } catch (err) { 
+      toast.error('Error de conexión con el servidor', { id: loadingToast }); 
+    }
   };
 
   return (

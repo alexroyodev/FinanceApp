@@ -24,14 +24,23 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
       const res = await fetch(`http://localhost:3000/transactions/${id}`, { 
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
       });
+      
+      const data = await res.json(); // 👇 Leemos la respuesta del backend
+      
       if (res.ok) {
         toast.success('Movimiento eliminado', { id: loadingToast });
         onDataChange();
-      } else { toast.error('Error al eliminar', { id: loadingToast }); }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
+      } else { 
+        // 👇 Mostramos el error del servidor si algo falla
+        toast.error(data.error || 'Error al eliminar', { id: loadingToast }); 
+      }
+    } catch (err) { 
+      toast.error('Error de conexión con el servidor', { id: loadingToast }); 
+    }
   };
 
   const handleUpdateTransactionCategory = async (txId: number, newCatId: string) => {
+    const loadingToast = toast.loading('Actualizando...');
     try {
       const token = await getToken();
       const res = await fetch(`http://localhost:3000/transactions/${txId}/category`, { 
@@ -39,8 +48,18 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ categoryId: newCatId }) 
       });
-      if (res.ok) { toast.success('Categoría actualizada'); onDataChange(); }
-    } catch (err) { toast.error('Error al actualizar'); }
+      
+      const data = await res.json(); // 👇 Leemos la respuesta
+      
+      if (res.ok) { 
+        toast.success('Categoría actualizada', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al actualizar', { id: loadingToast });
+      }
+    } catch (err) { 
+      toast.error('Error de conexión con el servidor', { id: loadingToast }); 
+    }
   };
 
   const exportToCSV = () => {

@@ -15,7 +15,7 @@ function App() {
   const [categories, setCategories] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // 👇 LÓGICA DEL MODO OSCURO (Recuerda la preferencia del navegador)
+  // LÓGICA DEL MODO OSCURO (Recuerda la preferencia del navegador)
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
@@ -58,14 +58,21 @@ function App() {
     fetchCategories();
   };
 
+  // --- MATEMÁTICAS PRINCIPALES ---
   const allAssets = user ? user.accounts.flatMap((acc: any) => (acc.assets || []).map((asset: any) => ({ ...asset, accountName: acc.name }))) : [];
-  const totalNetWorth = user ? user.accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0) : 0;
+  
+  // 1. La liquidez ahora es directamente el dinero que queda en tus cuentas (porque el backend ya lo resta)
+  const totalLiquidity = user ? user.accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0) : 0;
+  
+  // 2. Lo invertido es la suma de tus activos
   const totalInvested = allAssets.reduce((sum: number, asset: any) => sum + asset.balance, 0);
-  const totalLiquidity = totalNetWorth - totalInvested;
+  
+  // 3. El patrimonio total es la suma de tu liquidez más tus inversiones
+  const totalNetWorth = totalLiquidity + totalInvested;
 
   const allTransactions = user ? user.accounts.flatMap((acc: any) => acc.transactions || []) : [];
   allTransactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const recentTransactions = allTransactions.slice(0, 5); 
+  const recentTransactions = allTransactions.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200 font-sans">

@@ -3,6 +3,35 @@ import { PrismaClient } from '@prisma/client';
 import cors from 'cors';
 import 'dotenv/config';
 import { ClerkExpressRequireAuth, RequireAuthProp, clerkClient } from '@clerk/clerk-sdk-node';
+import { z } from 'zod';
+
+// 👇 ESQUEMAS DE VALIDACIÓN ZOD (La Fortaleza)
+const transactionSchema = z.object({
+  description: z.string().trim().min(2, "La descripción es muy corta").max(50, "La descripción es muy larga"),
+  amount: z.number().positive("La cantidad debe ser mayor que cero"), 
+  type: z.enum(['INCOME', 'EXPENSE', 'CONTRIBUTION', 'TRANSFER_OUT']),
+  accountId: z.number().int().positive(),
+  categoryId: z.number().int().positive().optional(),
+  assetId: z.number().int().positive().optional(),
+  originAccountId: z.number().int().positive().optional()
+});
+
+const accountSchema = z.object({
+  name: z.string().trim().min(2, "El nombre debe tener al menos 2 letras").max(30, "El nombre es muy largo"),
+  balance: z.number().min(0, "El saldo inicial no puede ser negativo"),
+  userId: z.number().int().positive("ID de usuario inválido"),
+});
+
+const categorySchema = z.object({
+  name: z.string().trim().min(2, "El nombre debe tener al menos 2 letras").max(30, "El nombre de categoría es muy largo"),
+});
+
+const assetSchema = z.object({
+  name: z.string().trim().min(2, "El nombre del activo es muy corto"),
+  symbol: z.string().trim().optional(),
+  balance: z.number().min(0, "La inversión inicial no puede ser negativa"),
+  accountId: z.number().int().positive("ID de cuenta inválido"),
+});
 
 declare global {
   namespace Express {
@@ -23,14 +52,11 @@ app.get('/', (req: Request, res: Response) => {
   res.json({ message: '🚀 Servidor financiero funcionando correctamente' });
 });
 
-
 // 3. Ruta GET /users/me (Devuelve los datos del usuario logueado o lo crea si no existe)
 app.get('/users/me', async (req: Request, res: Response) => {
   try {
-    // req.auth.userId es el ID mágico que nos ha verificado el middleware de Clerk
     const clerkUserId = req.auth.userId; 
 
-    // 1. Buscamos a ver si ya lo tenemos en nuestro PostgreSQL
     let user = await prisma.user.findUnique({
       where: { clerkId: clerkUserId },
       include: {
@@ -43,9 +69,7 @@ app.get('/users/me', async (req: Request, res: Response) => {
       },
     });
 
-    // 2. Si no existe (es un usuario nuevo), lo creamos en el acto
     if (!user) {
-      // Le preguntamos a Clerk cómo se llama este usuario y su email
       const clerkUser = await clerkClient.users.getUser(clerkUserId);
       const userName = clerkUser.firstName || clerkUser.username || 'Usuario';
       const userEmail = clerkUser.emailAddresses[0].emailAddress;
@@ -67,47 +91,46 @@ app.get('/users/me', async (req: Request, res: Response) => {
   }
 });
 
-// 4. Ruta para crear una cuenta (Banco, Cripto, etc.)
+// 4. Ruta para crear una cuenta (Banco, Cripto, etc.) BLINDADA
 app.post('/accounts', async (req: Request, res: Response) => {
   try {
-    const { name, balance, userId } = req.body;
+    const validData = accountSchema.parse(req.body);
 
     const newAccount = await prisma.account.create({
       data: {
-        name,
-        balance,
-        userId,
+        name: validData.name,
+        balance: validData.balance,
+        userId: validData.userId,
       },
     });
 
     res.status(201).json(newAccount);
-  } catch (error) {
-    res.status(400).json({ error: 'No se pudo crear la cuenta' });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues[0].message });
+    res.status(500).json({ error: 'No se pudo crear la cuenta' });
   }
 });
 
-// 5. Ruta para registrar una transacción (Ingreso, Gasto o Aportación cruzada)
+// 5. Ruta para registrar una transacción BLINDADA
 app.post('/transactions', async (req: Request, res: Response) => {
   try {
-    const { amount, type, description, accountId, categoryId, assetId, originAccountId } = req.body; 
+    const validData = transactionSchema.parse(req.body);
+    const { amount, type, description, accountId, categoryId, assetId, originAccountId } = validData; 
 
-    // 1. ¿Cómo afecta a la cuenta destino?
     let accountBalanceChange = 0;
     if (type === 'INCOME') accountBalanceChange = amount;
     if (type === 'EXPENSE' || type === 'TRANSFER_OUT') accountBalanceChange = -amount;
     
-    // Si es Aportación, el dinero solo SUMA en la cuenta destino si viene desde otra cuenta distinta
     if (type === 'CONTRIBUTION') {
       if (originAccountId && originAccountId !== accountId) {
         accountBalanceChange = amount; 
       } else {
-        accountBalanceChange = 0; // Si es en la misma cuenta, solo se mueve de liquidez a invertido
+        accountBalanceChange = 0; 
       }
     }
 
     const operations: any[] = [];
 
-    // 2. Si viene de otra cuenta, creamos una transacción de "Salida" y restamos el dinero origen
     if (type === 'CONTRIBUTION' && originAccountId && originAccountId !== accountId) {
       operations.push(
         prisma.transaction.create({
@@ -120,7 +143,6 @@ app.post('/transactions', async (req: Request, res: Response) => {
       );
     }
 
-    // 3. Creamos la transacción principal en la cuenta destino
     operations.push(
       prisma.transaction.create({
         data: { amount, type, description, accountId, categoryId, assetId }, 
@@ -131,7 +153,6 @@ app.post('/transactions', async (req: Request, res: Response) => {
       })
     );
 
-    // 4. Si es un activo, sumamos/restamos a su valor total
     if (assetId) {
       const assetBalanceChange = (type === 'EXPENSE' || type === 'TRANSFER_OUT') ? -amount : amount;
       operations.push(
@@ -144,22 +165,23 @@ app.post('/transactions', async (req: Request, res: Response) => {
 
     const result = await prisma.$transaction(operations);
     res.status(201).json(result[result.length - 1]); 
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues[0].message });
     console.error(error); 
-    res.status(400).json({ error: 'Error al registrar la transacción' });
+    res.status(500).json({ error: 'Error al registrar la transacción' });
   }
 });
 
 // 6. Ruta para obtener el historial de una cuenta específica
 app.get('/accounts/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params; // Sacamos el ID de la URL
+    const { id } = req.params; 
 
     const account = await prisma.account.findUnique({
-      where: { id: Number(id) }, // Convertimos a número porque la URL es un texto
+      where: { id: Number(id) }, 
       include: {
         transactions: {
-          orderBy: { date: 'desc' }, // Ordenamos: de más reciente a más antiguo
+          orderBy: { date: 'desc' }, 
         },
       },
     });
@@ -174,14 +196,15 @@ app.get('/accounts/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 7. Ruta para crear una categoría
+// 7. Ruta para crear una categoría BLINDADA
 app.post('/categories', async (req: Request, res: Response) => {
   try {
-    const { name } = req.body;
-    const newCategory = await prisma.category.create({ data: { name } });
+    const validData = categorySchema.parse(req.body);
+    const newCategory = await prisma.category.create({ data: { name: validData.name } });
     res.status(201).json(newCategory);
-  } catch (error) {
-    res.status(400).json({ error: 'No se pudo crear la categoría' });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues[0].message });
+    res.status(500).json({ error: 'No se pudo crear la categoría' });
   }
 });
 
@@ -196,7 +219,6 @@ app.get('/users/:id/net-worth', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Le pedimos a PostgreSQL que sume la columna 'balance' de todas las cuentas del usuario
     const aggregation = await prisma.account.aggregate({
       _sum: {
         balance: true,
@@ -206,7 +228,6 @@ app.get('/users/:id/net-worth', async (req: Request, res: Response) => {
       },
     });
 
-    // Si el usuario no tiene cuentas, la suma devuelve null, así que le ponemos 0 por defecto
     const totalNetWorth = aggregation._sum.balance || 0;
 
     res.json({ 
@@ -225,12 +246,10 @@ app.delete('/transactions/:id', async (req: Request, res: Response) => {
     const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
     if (!transaction) return res.status(404).json({ error: 'Transacción no encontrada' });
 
-    // Operación matemática inversa para la cuenta
     let accountBalanceCorrection = 0;
     if (transaction.type === 'INCOME') accountBalanceCorrection = -transaction.amount;
     if (transaction.type === 'EXPENSE') accountBalanceCorrection = transaction.amount;
     
-    // Operación matemática inversa para el activo
     const assetBalanceCorrection = transaction.type === 'EXPENSE' ? transaction.amount : -transaction.amount;
 
     const operations: any[] = [
@@ -263,13 +282,11 @@ app.delete('/categories/:id', async (req: Request, res: Response) => {
   try {
     const categoryId = parseInt(req.params.id as string, 10);
 
-    // 1. Desvinculamos esta categoría de cualquier transacción (evita error de clave foránea)
     await prisma.transaction.updateMany({
       where: { categoryId: categoryId },
       data: { categoryId: null },
     });
 
-    // 2. Ahora sí, borramos la categoría de la base de datos
     await prisma.category.delete({
       where: { id: categoryId },
     });
@@ -285,12 +302,11 @@ app.delete('/categories/:id', async (req: Request, res: Response) => {
 app.patch('/transactions/:id/category', async (req: Request, res: Response) => {
   try {
     const transactionId = parseInt(req.params.id as string, 10);
-    const { categoryId } = req.body; // Puede ser un número o vacío (null)
+    const { categoryId } = req.body; 
 
     const updatedTx = await prisma.transaction.update({
       where: { id: transactionId },
       data: { 
-        // Si nos envían un texto vacío, lo convertimos a null para quitarle la categoría
         categoryId: categoryId ? parseInt(categoryId, 10) : null 
       },
     });
@@ -307,12 +323,10 @@ app.delete('/accounts/:id', async (req: Request, res: Response) => {
   try {
     const accountId = parseInt(req.params.id as string, 10);
 
-    // 1. Primero borramos todos los movimientos asociados a esta cuenta para no dejar datos huérfanos
     await prisma.transaction.deleteMany({
       where: { accountId: accountId }
     });
 
-    // 2. Ahora ya podemos borrar la cuenta de forma segura
     await prisma.account.delete({
       where: { id: accountId }
     });
@@ -324,12 +338,12 @@ app.delete('/accounts/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 14. Ruta para añadir un nuevo activo (fondo/cripto) a una cuenta
+// 14. Ruta para añadir un nuevo activo (fondo/cripto) a una cuenta BLINDADA
 app.post('/assets', async (req: Request, res: Response) => {
   try {
-    const { name, symbol, balance, accountId } = req.body;
+    const validData = assetSchema.parse(req.body);
+    const { name, symbol, balance, accountId } = validData;
     
-    // Creamos el activo
     const newAsset = await prisma.asset.create({
       data: {
         name,
@@ -339,16 +353,16 @@ app.post('/assets', async (req: Request, res: Response) => {
       },
     });
 
-    // Sumamos el valor inicial de este activo al saldo total de la cuenta
     if (balance > 0) {
       await prisma.account.update({
         where: { id: accountId },
-        data: { balance: { increment: balance } }
+        data: { balance: { decrement: balance } }
       });
     }
 
     res.status(201).json(newAsset);
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues[0].message });
     console.error(error);
     res.status(500).json({ error: 'Error al crear el activo' });
   }
@@ -358,14 +372,15 @@ app.post('/assets', async (req: Request, res: Response) => {
 app.delete('/assets/:id', async (req: Request, res: Response) => {
   try {
     const assetId = parseInt(req.params.id as string, 10);
-    // Buscamos cuánto dinero tenía para quitárselo a la cuenta general y cuadrar las cuentas
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    
     if (asset) {
       await prisma.account.update({
         where: { id: asset.accountId },
-        data: { balance: { decrement: asset.balance } }
+        data: { balance: { increment: asset.balance } }
       });
     }
+    
     await prisma.asset.delete({ where: { id: assetId } });
     res.json({ message: 'Activo eliminado' });
   } catch (error) {

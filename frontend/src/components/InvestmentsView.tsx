@@ -15,9 +15,11 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
   const [newAssetSymbol, setNewAssetSymbol] = useState('');
   const [newAssetBalance, setNewAssetBalance] = useState('');
   const [newAssetAccountId, setNewAssetAccountId] = useState('');
+  
   const [contributionAmount, setContributionAmount] = useState('');
   const [contributionAssetId, setContributionAssetId] = useState('');
   const [contributionOriginAccountId, setContributionOriginAccountId] = useState('');
+  
   const [returnAmount, setReturnAmount] = useState('');
   const [returnType, setReturnType] = useState('INCOME'); 
   const [returnAssetId, setReturnAssetId] = useState('');
@@ -32,44 +34,114 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
   const handleAddAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAssetName.trim() || !newAssetBalance || !newAssetAccountId) return;
+    
+    if (parseFloat(newAssetBalance) < 0) {
+      toast.error('La inversión inicial no puede ser negativa');
+      return;
+    }
+
+    const loadingToast = toast.loading('Creando activo...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/assets', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newAssetName, symbol: newAssetSymbol, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) });
-      if (res.ok) { setNewAssetName(''); setNewAssetSymbol(''); setNewAssetBalance(''); toast.success('Activo creado correctamente'); onDataChange(); }
-    } catch (err) { toast.error('Error al crear activo'); }
+      const res = await fetch('http://localhost:3000/assets', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ name: newAssetName, symbol: newAssetSymbol, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) 
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        setNewAssetName(''); setNewAssetSymbol(''); setNewAssetBalance(''); 
+        toast.success('Activo creado correctamente', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al crear activo', { id: loadingToast });
+      }
+    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
   };
 
   const handleDeleteAsset = async (id: number) => {
     if (!window.confirm('🚨 ¿Eliminar este activo y todos sus registros?')) return;
+    const loadingToast = toast.loading('Eliminando...');
     try {
       const token = await getToken();
       const res = await fetch(`http://localhost:3000/assets/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { toast.success('Activo eliminado'); onDataChange(); }
-    } catch (err) { toast.error('Error al eliminar'); }
+      const data = await res.json();
+      
+      if (res.ok) { 
+        toast.success('Activo eliminado', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al eliminar', { id: loadingToast });
+      }
+    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
   };
 
   const handleAddContribution = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contributionAssetId || !contributionAmount || !contributionOriginAccountId) return;
+    
+    if (parseFloat(contributionAmount) <= 0) {
+      toast.error('La aportación debe ser mayor a 0');
+      return;
+    }
+
     const selectedAsset = allAssets.find((a: any) => a.id.toString() === contributionAssetId);
     if (!selectedAsset) return;
+    
+    const loadingToast = toast.loading('Registrando aportación...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ description: selectedAsset.name, amount: parseFloat(contributionAmount), type: 'CONTRIBUTION', accountId: selectedAsset.accountId, assetId: selectedAsset.id, originAccountId: parseInt(contributionOriginAccountId) }) });
-      if (res.ok) { setContributionAmount(''); toast.success('Aportación registrada'); onDataChange(); }
-    } catch (err) { toast.error('Error al registrar aportación'); }
+      const res = await fetch('http://localhost:3000/transactions', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ description: selectedAsset.name, amount: parseFloat(contributionAmount), type: 'CONTRIBUTION', accountId: selectedAsset.accountId, assetId: selectedAsset.id, originAccountId: parseInt(contributionOriginAccountId) }) 
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        setContributionAmount(''); 
+        toast.success('Aportación registrada', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al registrar aportación', { id: loadingToast });
+      }
+    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
   };
 
   const handleAddReturn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!returnAssetId || !returnAmount) return;
+
+    if (parseFloat(returnAmount) <= 0) {
+      toast.error('El importe de evolución debe ser mayor a 0');
+      return;
+    }
+
     const selectedAsset = allAssets.find((a: any) => a.id.toString() === returnAssetId);
     if (!selectedAsset) return;
+    
+    const loadingToast = toast.loading('Registrando evolución...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) });
-      if (res.ok) { setReturnAmount(''); toast.success('Evolución registrada'); onDataChange(); }
-    } catch (err) { toast.error('Error al registrar evolución'); }
+      const res = await fetch('http://localhost:3000/transactions', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) 
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        setReturnAmount(''); 
+        toast.success('Evolución registrada', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al registrar evolución', { id: loadingToast });
+      }
+    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
   };
 
   return (
@@ -77,30 +149,30 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
       <div className="space-y-8">
         <div>
           <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Añadir Nuevo Activo</h3>
-          <form onSubmit={handleAddAsset} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 border-l-4 border-indigo-500 transition-colors">
+          <form onSubmit={handleAddAsset} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 border-l-4 border-blue-500 transition-colors">
             <div className="flex gap-4">
               <div className="flex-[2] w-full">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre</label>
-                <input type="text" required value={newAssetName} onChange={(e) => setNewAssetName(e.target.value)} placeholder="Ej: S&P 500" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="text" required value={newAssetName} onChange={(e) => setNewAssetName(e.target.value)} placeholder="Ej: S&P 500" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Símbolo (Opc)</label>
-                <input type="text" value={newAssetSymbol} onChange={(e) => setNewAssetSymbol(e.target.value)} placeholder="Ej: SPY" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 uppercase" />
+                <input type="text" value={newAssetSymbol} onChange={(e) => setNewAssetSymbol(e.target.value)} placeholder="Ej: SPY" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 uppercase" />
               </div>
             </div>
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inversión Inicial (€)</label>
-                <input type="number" step="0.01" required value={newAssetBalance} onChange={(e) => setNewAssetBalance(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="number" step="0.01" required value={newAssetBalance} onChange={(e) => setNewAssetBalance(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuenta Asociada</label>
-                <select value={newAssetAccountId} onChange={(e) => setNewAssetAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+                <select value={newAssetAccountId} onChange={(e) => setNewAssetAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
                   {user.accounts.map((account: any) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </div>
             </div>
-            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer mt-2">Crear Activo</button>
+            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer mt-2">Crear Activo</button>
           </form>
         </div>
 
@@ -173,9 +245,9 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
       <div>
         <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Tu Cartera de Inversión</h3>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 overflow-hidden sticky top-8 transition-colors">
-          <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 border-b border-indigo-100 dark:border-indigo-800 flex justify-between items-center transition-colors">
-            <span className="font-bold text-indigo-900 dark:text-indigo-200">Total Invertido</span>
-            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-400">{totalInvested.toFixed(2)} €</span>
+          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 border-b border-blue-100 dark:border-blue-800 flex justify-between items-center transition-colors">
+            <span className="font-bold text-blue-900 dark:text-blue-200">Total Invertido</span>
+            <span className="text-2xl font-black text-blue-700 dark:text-blue-400">{totalInvested.toFixed(2)} €</span>
           </div>
           {allAssets.length === 0 ? (
             <div className="p-10 text-center text-gray-500 dark:text-gray-400">Aún no tienes activos registrados.</div>

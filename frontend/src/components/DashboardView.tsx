@@ -29,9 +29,17 @@ export default function DashboardView({ user, categories, recentTransactions, to
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); 
-    const newTransaction: any = { description, amount: parseFloat(amount), type, accountId: parseInt(accountId) };
+    
+    // 👇 1. Barrera Frontend: Validación rápida
+    if (parseFloat(amount) <= 0) {
+      toast.error('La cantidad debe ser mayor a 0');
+      return;
+    }
+
+    const newTransaction: any = { description: description.trim(), amount: parseFloat(amount), type, accountId: parseInt(accountId) };
     if (categoryId) newTransaction.categoryId = parseInt(categoryId);
     const loadingToast = toast.loading('Guardando...');
+    
     try {
       const token = await getToken();
       const res = await fetch('http://localhost:3000/transactions', { 
@@ -39,35 +47,57 @@ export default function DashboardView({ user, categories, recentTransactions, to
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify(newTransaction) 
       });
+      
+      // 👇 2. Leemos la respuesta del backend
+      const data = await res.json(); 
+      
       if (res.ok) { 
         setDescription(''); setAmount(''); setCategoryId(''); 
         toast.success('Movimiento guardado con éxito', { id: loadingToast });
         onDataChange(); 
-      } else { toast.error('Error al guardar', { id: loadingToast }); }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
+      } else { 
+        // 👇 3. Mostramos el mensaje exacto de Zod
+        toast.error(data.error || 'Error al guardar', { id: loadingToast }); 
+      }
+    } catch (err) { 
+      toast.error('Error de conexión con el servidor', { id: loadingToast }); 
+    }
   };
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
+    
+    const loadingToast = toast.loading('Creando...');
     try {
       const token = await getToken();
       const res = await fetch('http://localhost:3000/categories', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, 
-        body: JSON.stringify({ name: newCategoryName }) 
+        body: JSON.stringify({ name: newCategoryName.trim() }) 
       });
-      if (res.ok) { setNewCategoryName(''); toast.success('Categoría creada'); onDataChange(); }
-    } catch (err) { toast.error('Error al crear categoría'); }
+      
+      const data = await res.json();
+      
+      if (res.ok) { 
+        setNewCategoryName(''); 
+        toast.success('Categoría creada', { id: loadingToast }); 
+        onDataChange(); 
+      } else {
+        toast.error(data.error || 'Error al crear', { id: loadingToast });
+      }
+    } catch (err) { toast.error('Error de conexión con el servidor', { id: loadingToast }); }
   };
 
   const handleDeleteCategory = async (id: number) => {
     if (!window.confirm('¿Eliminar esta categoría?')) return;
+    const loadingToast = toast.loading('Eliminando...');
     try {
       const token = await getToken();
       const res = await fetch(`http://localhost:3000/categories/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { toast.success('Categoría eliminada'); onDataChange(); }
-    } catch (err) { toast.error('Error al eliminar'); }
+      if (res.ok) { toast.success('Categoría eliminada', { id: loadingToast }); onDataChange(); }
+      else { toast.error('Error al eliminar', { id: loadingToast }); }
+    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
   };
 
   return (
