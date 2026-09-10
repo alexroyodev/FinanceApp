@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import { 
-  PieChart, Pie, Tooltip, Legend, ResponsiveContainer, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine 
-} from 'recharts';
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 
 interface AnalyticsViewProps {
   allTransactions: any[];
@@ -13,7 +10,6 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
   const currentYearStr = new Date().getFullYear().toString();
   const [analyticsYear, setAnalyticsYear] = useState(currentYearStr);
   const [analyticsMonth, setAnalyticsMonth] = useState('ALL');
-
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e'];
   
   const availableYears = Array.from(new Set(allTransactions.map((tx: any) => new Date(tx.date).getFullYear().toString())));
@@ -41,9 +37,7 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
   const pieDataIncomes = Object.keys(incomesByCategory).map((name, i) => ({ name, value: incomesByCategory[name], fill: COLORS[(i + 2) % COLORS.length] }));
 
   const pieDataAssets = allAssets.map((asset: any, index: number) => ({
-    name: asset.name,
-    value: asset.balance,
-    fill: COLORS[index % COLORS.length]
+    name: asset.name, value: asset.balance, fill: COLORS[index % COLORS.length]
   }));
 
   const monthlyDataMap = months.map(m => ({ name: m, ingresos: 0, gastos: 0, inversiones: 0 }));
@@ -76,14 +70,14 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
   const yearlyData = Object.values(yearlyDataMap).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="bg-white p-4 rounded-xl shadow border border-gray-100 flex flex-wrap gap-4 items-center">
-        <span className="font-bold text-gray-800 uppercase text-sm tracking-wider">Filtros de Análisis:</span>
-        <select value={analyticsYear} onChange={(e) => setAnalyticsYear(e.target.value)} className="border border-gray-300 rounded p-2 text-sm bg-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
+    <div className="space-y-8 animate-fade-in transition-colors">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex flex-wrap gap-4 items-center transition-colors">
+        <span className="font-bold text-gray-800 dark:text-white uppercase text-sm tracking-wider">Filtros de Análisis:</span>
+        <select value={analyticsYear} onChange={(e) => setAnalyticsYear(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
           <option value="ALL">Todos los años</option>
           {availableYears.map((y: any) => <option key={y} value={y}>{y}</option>)}
         </select>
-        <select value={analyticsMonth} onChange={(e) => setAnalyticsMonth(e.target.value)} className="border border-gray-300 rounded p-2 text-sm bg-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
+        <select value={analyticsMonth} onChange={(e) => setAnalyticsMonth(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
           <option value="ALL">Todos los meses</option>
           {fullMonths.map((m, i) => <option key={i} value={i.toString()}>{m}</option>)}
         </select>
@@ -91,15 +85,15 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Balance Mensual</h3>
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Balance Mensual</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyDataMap} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} />
-                <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} cursor={{fill: '#f3f4f6'}} />
-                <ReferenceLine y={0} stroke="#cbd5e1" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#9ca3af" />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} stroke="#9ca3af" />
+                <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} cursor={{fill: 'transparent'}} />
+                <ReferenceLine y={0} stroke="#6b7280" />
                 <Legend />
                 <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="Ingresos" />
                 <Bar dataKey="gastos" fill="#ef4444" radius={[4, 4, 0, 0]} name="Gastos" />
@@ -110,15 +104,15 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
         </div>
 
         <div>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Histórico Anual Global</h3>
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Histórico Anual Global</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={yearlyData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} />
-                <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} cursor={{fill: '#f3f4f6'}} />
-                <ReferenceLine y={0} stroke="#cbd5e1" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#9ca3af" />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} stroke="#9ca3af" />
+                <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} cursor={{fill: 'transparent'}} />
+                <ReferenceLine y={0} stroke="#6b7280" />
                 <Legend />
                 <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="Ingresos" />
                 <Bar dataKey="gastos" fill="#ef4444" radius={[4, 4, 0, 0]} name="Gastos" />
@@ -131,23 +125,23 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Gastos por Categoría</h3>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gastos por Categoría</h3>
           {pieDataExpenses.length > 0 ? (
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataExpenses} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
-          ) : <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80 flex justify-center items-center text-gray-400">Sin datos de gastos</div>}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataExpenses} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
+          ) : <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-400 dark:text-gray-500 transition-colors">Sin datos de gastos</div>}
         </div>
         <div>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Ingresos por Categoría</h3>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Ingresos por Categoría</h3>
           {pieDataIncomes.length > 0 ? (
-            <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataIncomes} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
-          ) : <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80 flex justify-center items-center text-gray-400">Sin datos de ingresos</div>}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataIncomes} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
+          ) : <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-400 dark:text-gray-500 transition-colors">Sin datos de ingresos</div>}
         </div>
       </div>
 
       <div>
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Distribución de Cartera</h3>
+        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Distribución de Cartera</h3>
         {pieDataAssets.length > 0 ? (
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80 md:w-1/2">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 md:w-1/2 transition-colors">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={pieDataAssets} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" />
@@ -157,7 +151,7 @@ export default function AnalyticsView({ allTransactions, allAssets }: AnalyticsV
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="bg-white p-6 rounded-xl shadow border border-gray-100 h-80 md:w-1/2 flex justify-center items-center text-gray-400">No hay activos registrados</div>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 md:w-1/2 flex justify-center items-center text-gray-400 dark:text-gray-500 transition-colors">No hay activos registrados</div>
         )}
       </div>
     </div>

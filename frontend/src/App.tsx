@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SignedIn, SignedOut, SignIn, useAuth } from '@clerk/clerk-react';
+import { Toaster } from 'react-hot-toast'; 
 
-// Importamos todos los módulos
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
 import TransactionsView from './components/TransactionsView';
@@ -15,34 +15,37 @@ function App() {
   const [categories, setCategories] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // 👇 LÓGICA DEL MODO OSCURO (Recuerda la preferencia del navegador)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   const fetchUserData = async () => {
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/users/me', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const res = await fetch('http://localhost:3000/users/me', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data) setUser(data);
-    } catch (err) {
-      console.error('Error al cargar datos:', err);
-    }
+    } catch (err) { console.error('Error al cargar datos:', err); }
   };
 
   const fetchCategories = async () => {
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/categories', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const res = await fetch('http://localhost:3000/categories', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data) setCategories(data);
-    } catch (err) {
-      console.error('Error al cargar categorías:', err);
-    }
+    } catch (err) { console.error('Error al cargar categorías:', err); }
   };
 
   useEffect(() => {
@@ -55,7 +58,6 @@ function App() {
     fetchCategories();
   };
 
-  // --- MATEMÁTICAS PRINCIPALES ---
   const allAssets = user ? user.accounts.flatMap((acc: any) => (acc.assets || []).map((asset: any) => ({ ...asset, accountName: acc.name }))) : [];
   const totalNetWorth = user ? user.accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0) : 0;
   const totalInvested = allAssets.reduce((sum: number, asset: any) => sum + asset.balance, 0);
@@ -66,13 +68,14 @@ function App() {
   const recentTransactions = allTransactions.slice(0, 5); 
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200 font-sans">
+      <Toaster position="bottom-right" toastOptions={{ duration: 3000, style: { background: isDarkMode ? '#1f2937' : '#333', color: '#fff' } }} />
       
       <SignedOut>
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4 transition-colors">
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-extrabold text-blue-600 mb-2">Finance Tracker</h1>
-            <p className="text-gray-500">Inicia sesión para gestionar tu patrimonio</p>
+            <p className="text-gray-500 dark:text-gray-400">Inicia sesión para gestionar tu patrimonio</p>
           </div>
           <SignIn routing="hash" />
         </div>
@@ -83,56 +86,25 @@ function App() {
           <div className="p-8">
             <div className="max-w-6xl mx-auto space-y-8">
               
-              <Header user={user} activeTab={activeTab} setActiveTab={setActiveTab} />
+              {/* Le pasamos las funciones de dark mode al Header */}
+              <Header 
+                user={user} 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab} 
+                isDarkMode={isDarkMode} 
+                setIsDarkMode={setIsDarkMode} 
+              />
 
-              {activeTab === 'dashboard' && (
-                <DashboardView 
-                  user={user} 
-                  categories={categories} 
-                  recentTransactions={recentTransactions} 
-                  totalNetWorth={totalNetWorth} 
-                  totalLiquidity={totalLiquidity} 
-                  totalInvested={totalInvested} 
-                  onDataChange={refreshAllData} 
-                />
-              )}
-
-              {activeTab === 'transactions' && (
-                <TransactionsView 
-                  allTransactions={allTransactions} 
-                  categories={categories} 
-                  onDataChange={refreshAllData} 
-                />
-              )}
-
-              {activeTab === 'investments' && (
-                <InvestmentsView 
-                  user={user} 
-                  allAssets={allAssets} 
-                  totalInvested={totalInvested} 
-                  onDataChange={refreshAllData} 
-                />
-              )}
-
-              {activeTab === 'accounts' && (
-                <AccountsView 
-                  user={user} 
-                  onDataChange={refreshAllData} 
-                />
-              )}
-
-              {activeTab === 'analytics' && (
-                <AnalyticsView 
-                  allTransactions={allTransactions} 
-                  allAssets={allAssets} 
-                />
-              )}
-
+              {activeTab === 'dashboard' && <DashboardView user={user} categories={categories} recentTransactions={recentTransactions} totalNetWorth={totalNetWorth} totalLiquidity={totalLiquidity} totalInvested={totalInvested} onDataChange={refreshAllData} />}
+              {activeTab === 'transactions' && <TransactionsView allTransactions={allTransactions} categories={categories} onDataChange={refreshAllData} />}
+              {activeTab === 'investments' && <InvestmentsView user={user} allAssets={allAssets} totalInvested={totalInvested} onDataChange={refreshAllData} />}
+              {activeTab === 'accounts' && <AccountsView user={user} onDataChange={refreshAllData} />}
+              {activeTab === 'analytics' && <AnalyticsView allTransactions={allTransactions} allAssets={allAssets} />}
             </div>
           </div>
         ) : (
-          <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="text-gray-500 animate-pulse">Cargando tus datos...</div>
+          <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+            <div className="text-gray-500 dark:text-gray-400 animate-pulse">Cargando tus datos...</div>
           </div>
         )}
       </SignedIn>
