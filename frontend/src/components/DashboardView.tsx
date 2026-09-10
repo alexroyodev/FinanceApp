@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 interface DashboardViewProps {
   user: any;
@@ -11,6 +12,8 @@ interface DashboardViewProps {
 }
 
 export default function DashboardView({ user, categories, recentTransactions, totalNetWorth, totalLiquidity, totalInvested, onDataChange }: DashboardViewProps) {
+  const { getToken } = useAuth(); // 👇 Obtenemos la función del token
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('EXPENSE');
@@ -19,7 +22,6 @@ export default function DashboardView({ user, categories, recentTransactions, to
   
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // Autoseleccionar la primera cuenta
   useEffect(() => {
     if (user && user.accounts.length > 0 && !accountId) {
       setAccountId(user.accounts[0].id.toString());
@@ -31,7 +33,15 @@ export default function DashboardView({ user, categories, recentTransactions, to
     const newTransaction: any = { description, amount: parseFloat(amount), type, accountId: parseInt(accountId) };
     if (categoryId) newTransaction.categoryId = parseInt(categoryId);
     try {
-      const res = await fetch('http://localhost:3000/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newTransaction) });
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/transactions', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }, 
+        body: JSON.stringify(newTransaction) 
+      });
       if (res.ok) { setDescription(''); setAmount(''); setCategoryId(''); onDataChange(); }
     } catch (err) { console.error('Error:', err); }
   };
@@ -40,7 +50,15 @@ export default function DashboardView({ user, categories, recentTransactions, to
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     try {
-      const res = await fetch('http://localhost:3000/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCategoryName }) });
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/categories', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }, 
+        body: JSON.stringify({ name: newCategoryName }) 
+      });
       if (res.ok) { setNewCategoryName(''); onDataChange(); }
     } catch (err) { console.error(err); }
   };
@@ -48,7 +66,11 @@ export default function DashboardView({ user, categories, recentTransactions, to
   const handleDeleteCategory = async (id: number) => {
     if (!window.confirm('¿Eliminar esta categoría?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/categories/${id}`, { method: 'DELETE' });
+      const token = await getToken();
+      const res = await fetch(`http://localhost:3000/categories/${id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) onDataChange();
     } catch (err) { console.error(err); }
   };

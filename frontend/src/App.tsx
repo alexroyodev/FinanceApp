@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignIn, useAuth } from '@clerk/clerk-react';
 
 // Importamos todos los módulos
 import Header from './components/Header';
@@ -10,24 +10,39 @@ import AccountsView from './components/AccountsView';
 import AnalyticsView from './components/AnalyticsView';
 
 function App() {
+  const { getToken } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  const fetchUserData = () => {
-    fetch('http://localhost:3000/users')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.length > 0) setUser(data[0]);
-      })
-      .catch((err) => console.error('Error al cargar datos:', err));
+  const fetchUserData = async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/users/me', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data) setUser(data);
+    } catch (err) {
+      console.error('Error al cargar datos:', err);
+    }
   };
 
-  const fetchCategories = () => {
-    fetch('http://localhost:3000/categories')
-      .then((res) => res.json())
-      .then((data) => setCategories(data))
-      .catch((err) => console.error('Error al cargar categorías:', err));
+  const fetchCategories = async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/categories', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data) setCategories(data);
+    } catch (err) {
+      console.error('Error al cargar categorías:', err);
+    }
   };
 
   useEffect(() => {

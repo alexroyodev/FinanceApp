@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 interface TransactionsViewProps {
   allTransactions: any[];
@@ -7,6 +8,8 @@ interface TransactionsViewProps {
 }
 
 export default function TransactionsView({ allTransactions, categories, onDataChange }: TransactionsViewProps) {
+  const { getToken } = useAuth();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL'); 
@@ -16,15 +19,25 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
   const handleDelete = async (id: number) => {
     if (!window.confirm('¿Eliminar este movimiento?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/transactions/${id}`, { method: 'DELETE' });
+      const token = await getToken();
+      const res = await fetch(`http://localhost:3000/transactions/${id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) onDataChange();
     } catch (err) { console.error(err); }
   };
 
   const handleUpdateTransactionCategory = async (txId: number, newCatId: string) => {
     try {
+      const token = await getToken();
       const res = await fetch(`http://localhost:3000/transactions/${txId}/category`, { 
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categoryId: newCatId }) 
+        method: 'PATCH', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }, 
+        body: JSON.stringify({ categoryId: newCatId }) 
       });
       if (res.ok) onDataChange();
     } catch (err) { console.error(err); }

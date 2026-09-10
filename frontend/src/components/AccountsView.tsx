@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 interface AccountsViewProps {
   user: any;
@@ -6,6 +7,8 @@ interface AccountsViewProps {
 }
 
 export default function AccountsView({ user, onDataChange }: AccountsViewProps) {
+  const { getToken } = useAuth();
+
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountBalance, setNewAccountBalance] = useState('');
 
@@ -13,9 +16,13 @@ export default function AccountsView({ user, onDataChange }: AccountsViewProps) 
     e.preventDefault();
     if (!newAccountName.trim() || !newAccountBalance) return;
     try {
+      const token = await getToken();
       const res = await fetch('http://localhost:3000/accounts', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }, 
         body: JSON.stringify({ name: newAccountName, balance: parseFloat(newAccountBalance), userId: user.id }) 
       });
       if (res.ok) { 
@@ -29,7 +36,11 @@ export default function AccountsView({ user, onDataChange }: AccountsViewProps) 
   const handleDeleteAccount = async (id: number) => {
     if (!window.confirm('🚨 ¡ATENCIÓN! Se borrarán todos los movimientos y activos asociados.')) return;
     try {
-      const res = await fetch(`http://localhost:3000/accounts/${id}`, { method: 'DELETE' });
+      const token = await getToken();
+      const res = await fetch(`http://localhost:3000/accounts/${id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) { onDataChange(); }
     } catch (err) { console.error(err); }
   };

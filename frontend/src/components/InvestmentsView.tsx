@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 interface InvestmentsViewProps {
   user: any;
@@ -8,23 +9,21 @@ interface InvestmentsViewProps {
 }
 
 export default function InvestmentsView({ user, allAssets, totalInvested, onDataChange }: InvestmentsViewProps) {
-  // Formulario 1: Activo
+  const { getToken } = useAuth();
+
   const [newAssetName, setNewAssetName] = useState('');
   const [newAssetSymbol, setNewAssetSymbol] = useState('');
   const [newAssetBalance, setNewAssetBalance] = useState('');
   const [newAssetAccountId, setNewAssetAccountId] = useState('');
 
-  // Formulario 2: Aportación
   const [contributionAmount, setContributionAmount] = useState('');
   const [contributionAssetId, setContributionAssetId] = useState('');
   const [contributionOriginAccountId, setContributionOriginAccountId] = useState('');
 
-  // Formulario 3: Rendimiento
   const [returnAmount, setReturnAmount] = useState('');
   const [returnType, setReturnType] = useState('INCOME'); 
   const [returnAssetId, setReturnAssetId] = useState('');
 
-  // Pre-seleccionar cuentas por defecto
   useEffect(() => {
     if (user && user.accounts.length > 0) {
       if (!newAssetAccountId) setNewAssetAccountId(user.accounts[0].id.toString());
@@ -36,7 +35,15 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
     e.preventDefault();
     if (!newAssetName.trim() || !newAssetBalance || !newAssetAccountId) return;
     try {
-      const res = await fetch('http://localhost:3000/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newAssetName, symbol: newAssetSymbol, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) });
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/assets', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }, 
+        body: JSON.stringify({ name: newAssetName, symbol: newAssetSymbol, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) 
+      });
       if (res.ok) { setNewAssetName(''); setNewAssetSymbol(''); setNewAssetBalance(''); onDataChange(); }
     } catch (err) { console.error(err); }
   };
@@ -44,7 +51,11 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
   const handleDeleteAsset = async (id: number) => {
     if (!window.confirm('🚨 ¿Eliminar este activo y todos sus registros?')) return;
     try {
-      const res = await fetch(`http://localhost:3000/assets/${id}`, { method: 'DELETE' });
+      const token = await getToken();
+      const res = await fetch(`http://localhost:3000/assets/${id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) onDataChange();
     } catch (err) { console.error(err); }
   };
@@ -55,8 +66,13 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
     const selectedAsset = allAssets.find((a: any) => a.id.toString() === contributionAssetId);
     if (!selectedAsset) return;
     try {
+      const token = await getToken();
       const res = await fetch('http://localhost:3000/transactions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
         body: JSON.stringify({ description: selectedAsset.name, amount: parseFloat(contributionAmount), type: 'CONTRIBUTION', accountId: selectedAsset.accountId, assetId: selectedAsset.id, originAccountId: parseInt(contributionOriginAccountId) }),
       });
       if (res.ok) { setContributionAmount(''); onDataChange(); }
@@ -69,7 +85,15 @@ export default function InvestmentsView({ user, allAssets, totalInvested, onData
     const selectedAsset = allAssets.find((a: any) => a.id.toString() === returnAssetId);
     if (!selectedAsset) return;
     try {
-      const res = await fetch('http://localhost:3000/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) });
+      const token = await getToken();
+      const res = await fetch('http://localhost:3000/transactions', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }, 
+        body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) 
+      });
       if (res.ok) { setReturnAmount(''); onDataChange(); }
     } catch (err) { console.error(err); }
   };

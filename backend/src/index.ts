@@ -1,6 +1,14 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import cors from 'cors';
+import 'dotenv/config';
+import { ClerkExpressRequireAuth, RequireAuthProp, clerkClient } from '@clerk/clerk-sdk-node';
+
+declare global {
+  namespace Express {
+    interface Request extends RequireAuthProp<any> {}
+  }
+}
 
 const app = express();
 const prisma = new PrismaClient();
@@ -8,49 +16,54 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(ClerkExpressRequireAuth() as any);
 
 // 1. Ruta de prueba (Health check)
 app.get('/', (req: Request, res: Response) => {
   res.json({ message: '🚀 Servidor financiero funcionando correctamente' });
 });
 
-// 2. Ruta para crear un nuevo usuario
-app.post('/users', async (req: Request, res: Response) => {
+
+// 3. Ruta GET /users/me (Devuelve los datos del usuario logueado o lo crea si no existe)
+app.get('/users/me', async (req: Request, res: Response) => {
   try {
-    const { email, name } = req.body;
+    // req.auth.userId es el ID mágico que nos ha verificado el middleware de Clerk
+    const clerkUserId = req.auth.userId; 
 
-    const newUser = await prisma.user.create({
-      data: {
-        email,
-        name,
-      },
-    });
-
-    res.status(201).json(newUser);
-  } catch (error) {
-    res.status(400).json({ error: 'No se pudo crear el usuario (¿email duplicado?)' });
-  }
-});
-
-// 3. Ruta para obtener todos los usuarios y sus cuentas
-app.get('/users', async (req: Request, res: Response) => {
-  try {
-    const users = await prisma.user.findMany({
+    // 1. Buscamos a ver si ya lo tenemos en nuestro PostgreSQL
+    let user = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
       include: {
         accounts: {
           include: {
             assets: true,
-            transactions: {
-              orderBy: { date: 'desc' },
-              include: { category: true, asset: true }
-            }
+            transactions: { orderBy: { date: 'desc' }, include: { category: true, asset: true } }
           }
         },
       },
     });
-    res.json(users);
+
+    // 2. Si no existe (es un usuario nuevo), lo creamos en el acto
+    if (!user) {
+      // Le preguntamos a Clerk cómo se llama este usuario y su email
+      const clerkUser = await clerkClient.users.getUser(clerkUserId);
+      const userName = clerkUser.firstName || clerkUser.username || 'Usuario';
+      const userEmail = clerkUser.emailAddresses[0].emailAddress;
+
+      user = await prisma.user.create({
+        data: {
+          clerkId: clerkUserId,
+          name: userName,
+          email: userEmail,
+        },
+        include: { accounts: { include: { assets: true, transactions: true } } }
+      });
+    }
+
+    res.json(user);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener usuarios' });
+    console.error('Error al sincronizar usuario:', error);
+    res.status(500).json({ error: 'Error al obtener usuario' });
   }
 });
 
