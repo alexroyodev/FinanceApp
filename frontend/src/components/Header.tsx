@@ -12,9 +12,10 @@ export default function Header({ user, activeTab, setActiveTab, isDarkMode, setI
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', bgColor: 'bg-blue-600' },
     { id: 'transactions', label: 'Movimientos', bgColor: 'bg-blue-600' },
-    { id: 'investments', label: 'Inversiones', bgColor: 'bg-blue-600' }, // 👈 Cambiado a azul
+    { id: 'investments', label: 'Inversiones', bgColor: 'bg-blue-600' },
     { id: 'accounts', label: 'Cuentas', bgColor: 'bg-blue-600' },
-    { id: 'analytics', label: 'Estadísticas', bgColor: 'bg-blue-600' }
+    { id: 'analytics', label: 'Estadísticas', bgColor: 'bg-blue-600' },
+    { id: 'share', label: 'Compartir', bgColor: 'bg-blue-600' }
   ];
 
   return (

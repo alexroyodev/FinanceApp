@@ -8,6 +8,7 @@ import TransactionsView from './components/TransactionsView';
 import InvestmentsView from './components/InvestmentsView';
 import AccountsView from './components/AccountsView';
 import AnalyticsView from './components/AnalyticsView';
+import ShareView from './components/ShareView';
 
 function App() {
   const { getToken } = useAuth();
@@ -106,7 +107,8 @@ function App() {
               {activeTab === 'transactions' && <TransactionsView allTransactions={allTransactions} categories={categories} accounts={user.accounts} onDataChange={refreshAllData} />}
               {activeTab === 'investments' && <InvestmentsView user={user} allAssets={allAssets} totalInvested={totalInvested} onDataChange={refreshAllData} />}
               {activeTab === 'accounts' && <AccountsView user={user} onDataChange={refreshAllData} />}
-              {activeTab === 'analytics' && <AnalyticsView allTransactions={allTransactions} allAssets={allAssets} totalNetWorth={totalNetWorth} totalLiquidity={totalLiquidity} totalInvested={totalInvested} />}
+              {activeTab === 'analytics' && (<AnalyticsView allTransactions={allTransactions} allAssets={allAssets}totalNetWorth={totalNetWorth}totalLiquidity={totalLiquidity}totalInvested={totalInvested}/>)}
+              {activeTab === 'share' && (<ShareView allTransactions={allTransactions} allAssets={allAssets}/>)}
             </div>
           </div>
         ) : (

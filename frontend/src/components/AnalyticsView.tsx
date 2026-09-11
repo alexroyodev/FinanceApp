@@ -78,7 +78,7 @@ export default function AnalyticsView({ allTransactions, allAssets, totalNetWort
     .reduce((acc: any, tx: any) => { acc[tx.category.name] = (acc[tx.category.name] || 0) + tx.amount; return acc; }, {});
   const pieDataIncomes = Object.keys(incomesByCategory).map((name, i) => ({ name, value: incomesByCategory[name], fill: COLORS[(i + 2) % COLORS.length] }));
 
-  // 👇 NUEVO: Quesito de Inversiones por Tipo (Fondo, Cripto, etc.)
+  // Quesito de Inversiones por Tipo (Fondo, Cripto, etc.)
   const assetsByType = allAssets.reduce((acc: any, asset: any) => {
     const type = asset.symbol || 'Otro'; // Recuerda que metimos el tipo en "symbol"
     acc[type] = (acc[type] || 0) + asset.balance;
@@ -90,7 +90,7 @@ export default function AnalyticsView({ allTransactions, allAssets, totalNetWort
     fill: COLORS[(i + 4) % COLORS.length] // Desplazamos colores para que varíen
   }));
 
-  // 👇 NUEVO: Quesito de Inversiones por Activo Individual
+  // Quesito de Inversiones por Activo Individual
   const pieDataAssets = allAssets.map((asset: any, index: number) => ({
     name: asset.name, 
     value: asset.balance, 
@@ -265,7 +265,7 @@ export default function AnalyticsView({ allTransactions, allAssets, totalNetWort
         </div>
       </div>
 
-      {/* 👇 NUEVA FILA: COMPOSICIÓN DE LA CARTERA DE INVERSIÓN 👇 */}
+      {/* COMPOSICIÓN DE LA CARTERA DE INVERSIÓN  */}
       <div className="grid md:grid-cols-2 gap-8">
         <div>
           <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Inversiones por Tipo</h3>

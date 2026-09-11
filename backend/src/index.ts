@@ -354,9 +354,21 @@ app.post('/assets', async (req: Request, res: Response) => {
     });
 
     if (balance > 0) {
+      // 1. Restamos el dinero invertido de la liquidez de la cuenta
       await prisma.account.update({
         where: { id: accountId },
         data: { balance: { decrement: balance } }
+      });
+
+      // 2. Generamos el recibo (movimiento) para el historial del mes
+      await prisma.transaction.create({
+        data: {
+          description: `Inversión inicial: ${name}`,
+          amount: balance,
+          type: 'CONTRIBUTION',
+          accountId: accountId,
+          assetId: newAsset.id
+        }
       });
     }
 
