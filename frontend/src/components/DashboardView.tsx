@@ -10,9 +10,10 @@ interface DashboardViewProps {
   totalLiquidity: number;
   totalInvested: number;
   onDataChange: () => void;
+  onNavigateToAccounts: () => void;
 }
 
-export default function DashboardView({ user, categories, recentTransactions, totalNetWorth, totalLiquidity, totalInvested, onDataChange }: DashboardViewProps) {
+export default function DashboardView({ user, categories, recentTransactions, totalNetWorth, totalLiquidity, totalInvested, onDataChange, onNavigateToAccounts }: DashboardViewProps) {
   const { getToken } = useAuth();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -21,16 +22,18 @@ export default function DashboardView({ user, categories, recentTransactions, to
   const [categoryId, setCategoryId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
 
+  // Comprobamos si el usuario está en "Arranque en frío" (sin cuentas)
+  const hasNoAccounts = !user.accounts || user.accounts.length === 0;
+
   useEffect(() => {
-    if (user && user.accounts.length > 0 && !accountId) {
+    if (!hasNoAccounts && !accountId) {
       setAccountId(user.accounts[0].id.toString());
     }
-  }, [user]);
+  }, [user, hasNoAccounts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); 
     
-    // 👇 1. Barrera Frontend: Validación rápida
     if (parseFloat(amount) <= 0) {
       toast.error('La cantidad debe ser mayor a 0');
       return;
@@ -48,15 +51,13 @@ export default function DashboardView({ user, categories, recentTransactions, to
         body: JSON.stringify(newTransaction) 
       });
       
-      // 👇 2. Leemos la respuesta del backend
-      const data = await res.json(); 
+      const data = await res.json();
       
       if (res.ok) { 
         setDescription(''); setAmount(''); setCategoryId(''); 
         toast.success('Movimiento guardado con éxito', { id: loadingToast });
         onDataChange(); 
       } else { 
-        // 👇 3. Mostramos el mensaje exacto de Zod
         toast.error(data.error || 'Error al guardar', { id: loadingToast }); 
       }
     } catch (err) { 
@@ -117,58 +118,78 @@ export default function DashboardView({ user, categories, recentTransactions, to
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Tus Cuentas</h3>
-          <div className="space-y-4">
-            {user.accounts.map((account: any) => (
-              <div key={account.id} className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex justify-between items-center transition-colors">
-                <span className="text-gray-600 dark:text-gray-300 font-medium">{account.name}</span>
-                <span className="text-xl font-bold text-gray-900 dark:text-white">{account.balance.toFixed(2)} €</span>
+      {/* SI EL USUARIO NO TIENE CUENTAS, MOSTRAMOS EL ONBOARDING GUIADO */}
+      {hasNoAccounts ? (
+        <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-md border-2 border-dashed border-blue-400 dark:border-blue-500 text-center space-y-6 transition-colors">
+          <div className="max-w-md mx-auto space-y-3">
+            <span className="text-4xl">👋</span>
+            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">¡Bienvenido a tu Gestor Financiero!</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
+              Para empezar a registrar tus gastos, ingresos o inversiones, el sistema necesita saber dónde guardas tu dinero. Crea tu primera cuenta (por ejemplo, "Cuenta Corriente" o "Efectivo").
+            </p>
+          </div>
+          <button 
+            onClick={onNavigateToAccounts}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition-transform hover:scale-105 cursor-pointer"
+          >
+            Crear mi primera cuenta 🚀
+          </button>
+        </div>
+      ) : (
+        /* VISTA NORMAL DEL DASHBOARD SI YA TIENE CUENTAS */
+        <div className="grid md:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Tus Cuentas</h3>
+            <div className="space-y-4">
+              {user.accounts.map((account: any) => (
+                <div key={account.id} className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex justify-between items-center transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300 font-medium">{account.name}</span>
+                  <span className="text-xl font-bold text-gray-900 dark:text-white">{account.balance.toFixed(2)} €</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Añadir Movimiento</h3>
+            <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 transition-colors">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
+                <input type="text" required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej: Cena con amigos" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-            ))}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad (€)</label>
+                  <input type="number" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
+                  <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="EXPENSE">Gasto</option>
+                    <option value="INCOME">Ingreso</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuenta</label>
+                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    {user.accounts.map((account: any) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
+                  <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Sin categoría</option>
+                    {categories.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">Guardar Movimiento</button>
+            </form>
           </div>
         </div>
-
-        <div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Añadir Movimiento Rápido</h3>
-          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 transition-colors">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
-              <input type="text" required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej: Cena con amigos" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad (€)</label>
-                <input type="number" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
-                <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="EXPENSE">Gasto</option>
-                  <option value="INCOME">Ingreso</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuenta</label>
-                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                  {user.accounts.map((account: any) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
-                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Sin categoría</option>
-                  {categories.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">Guardar Movimiento</button>
-          </form>
-        </div>
-      </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>

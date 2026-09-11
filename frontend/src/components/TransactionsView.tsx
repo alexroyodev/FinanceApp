@@ -5,14 +5,16 @@ import toast from 'react-hot-toast';
 interface TransactionsViewProps {
   allTransactions: any[];
   categories: any[];
+  accounts: any[];
   onDataChange: () => void;
 }
 
-export default function TransactionsView({ allTransactions, categories, onDataChange }: TransactionsViewProps) {
+export default function TransactionsView({ allTransactions, categories, accounts, onDataChange }: TransactionsViewProps) {
   const { getToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL'); 
+  const [filterAccount, setFilterAccount] = useState('ALL');
   const [filterMin, setFilterMin] = useState('');
   const [filterMax, setFilterMax] = useState('');
 
@@ -25,13 +27,12 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
       });
       
-      const data = await res.json(); // 👇 Leemos la respuesta del backend
+      const data = await res.json();
       
       if (res.ok) {
         toast.success('Movimiento eliminado', { id: loadingToast });
         onDataChange();
       } else { 
-        // 👇 Mostramos el error del servidor si algo falla
         toast.error(data.error || 'Error al eliminar', { id: loadingToast }); 
       }
     } catch (err) { 
@@ -49,7 +50,7 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
         body: JSON.stringify({ categoryId: newCatId }) 
       });
       
-      const data = await res.json(); // 👇 Leemos la respuesta
+      const data = await res.json();
       
       if (res.ok) { 
         toast.success('Categoría actualizada', { id: loadingToast }); 
@@ -64,14 +65,15 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
 
   const exportToCSV = () => {
     if (filteredTransactions.length === 0) { toast.error('No hay datos para exportar'); return; }
-    const headers = ['Fecha', 'Descripción', 'Tipo', 'Categoría', 'Cantidad'];
+    const headers = ['Fecha', 'Descripción', 'Cuenta', 'Tipo', 'Categoría', 'Cantidad'];
     const rows = filteredTransactions.map((tx: any) => {
       const date = new Date(tx.date).toLocaleDateString();
       const desc = `"${tx.description.replace(/"/g, '""')}"`; 
+      const accountName = accounts.find((acc: any) => acc.id === tx.accountId)?.name || 'Desconocida';
       const type = tx.type;
       const cat = tx.category ? tx.category.name : 'Sin categoría';
       const amount = tx.amount.toString();
-      return [date, desc, type, cat, amount].join(',');
+      return [date, desc, accountName, type, cat, amount].join(',');
     });
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); 
@@ -88,7 +90,9 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
     const matchesMin = filterMin === '' || tx.amount >= parseFloat(filterMin);
     const matchesMax = filterMax === '' || tx.amount <= parseFloat(filterMax);
     const matchesCategory = filterCategory === 'ALL' || (filterCategory === 'NONE' && !tx.category) || (tx.category && tx.category.id === parseInt(filterCategory));
-    return matchesSearch && matchesType && matchesMin && matchesMax && matchesCategory;
+    const matchesAccount = filterAccount === 'ALL' || tx.accountId === parseInt(filterAccount);
+    
+    return matchesSearch && matchesType && matchesMin && matchesMax && matchesCategory && matchesAccount;
   });
 
   return (
@@ -102,7 +106,7 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
 
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 transition-colors">
         <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">Filtros de búsqueda</h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1">Buscar nombre</label>
             <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500" />
@@ -126,6 +130,13 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
             </select>
           </div>
           <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1">Cuenta</label>
+            <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="ALL">Todas</option>
+              {accounts.map((acc: any) => <option key={acc.id} value={acc.id.toString()}>{acc.name}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1">Min €</label>
             <input type="number" value={filterMin} onChange={(e) => setFilterMin(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
@@ -140,11 +151,12 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
         {filteredTransactions.length === 0 ? (
           <div className="p-10 text-center text-gray-500 dark:text-gray-400 font-medium">No se encontraron movimientos.</div>
         ) : (
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
                 <th className="p-4 font-bold">Fecha</th>
                 <th className="p-4 font-bold">Descripción</th>
+                <th className="p-4 font-bold">Cuenta</th>
                 <th className="p-4 font-bold">Categoría</th>
                 <th className="p-4 font-bold text-right">Importe</th>
                 <th className="p-4 font-bold text-center">Acciones</th>
@@ -159,6 +171,9 @@ export default function TransactionsView({ allTransactions, categories, onDataCh
                     {tx.type === 'CONTRIBUTION' && <span className="ml-2 text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-full font-bold uppercase">Aportación</span>}
                     {tx.type === 'TRANSFER_OUT' && <span className="ml-2 text-[10px] bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300 px-2 py-1 rounded-full font-bold uppercase">Traspaso</span>}
                     {tx.type !== 'CONTRIBUTION' && tx.type !== 'TRANSFER_OUT' && tx.assetId && <span className="ml-2 text-[10px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded-full font-bold uppercase">Rendimiento</span>}
+                  </td>
+                  <td className="p-4 text-sm text-gray-500 dark:text-gray-300">
+                    {accounts.find(acc => acc.id === tx.accountId)?.name || 'Desconocida'}
                   </td>
                   <td className="p-4">
                     <select 

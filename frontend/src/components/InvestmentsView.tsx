@@ -1,277 +1,306 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
-import toast from 'react-hot-toast';
+import { useState, useMemo } from 'react';
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine, AreaChart, Area } from 'recharts';
 
-interface InvestmentsViewProps {
-  user: any;
+interface AnalyticsViewProps {
+  allTransactions: any[];
   allAssets: any[];
+  totalNetWorth: number;
+  totalLiquidity: number;
   totalInvested: number;
-  onDataChange: () => void;
 }
 
-export default function InvestmentsView({ user, allAssets, totalInvested, onDataChange }: InvestmentsViewProps) {
-  const { getToken } = useAuth();
-  const [newAssetName, setNewAssetName] = useState('');
-  const [newAssetSymbol, setNewAssetSymbol] = useState('');
-  const [newAssetBalance, setNewAssetBalance] = useState('');
-  const [newAssetAccountId, setNewAssetAccountId] = useState('');
+export default function AnalyticsView({ allTransactions, allAssets, totalNetWorth, totalLiquidity, totalInvested }: AnalyticsViewProps) {
+  const currentYearStr = new Date().getFullYear().toString();
+  const [analyticsYear, setAnalyticsYear] = useState(currentYearStr);
+  const [analyticsMonth, setAnalyticsMonth] = useState('ALL');
   
-  const [contributionAmount, setContributionAmount] = useState('');
-  const [contributionAssetId, setContributionAssetId] = useState('');
-  const [contributionOriginAccountId, setContributionOriginAccountId] = useState('');
-  
-  const [returnAmount, setReturnAmount] = useState('');
-  const [returnType, setReturnType] = useState('INCOME'); 
-  const [returnAssetId, setReturnAssetId] = useState('');
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e'];
 
-  useEffect(() => {
-    if (user && user.accounts.length > 0) {
-      if (!newAssetAccountId) setNewAssetAccountId(user.accounts[0].id.toString());
-      if (!contributionOriginAccountId) setContributionOriginAccountId(user.accounts[0].id.toString());
-    }
-  }, [user]);
+  // --- CÁLCULOS PARA LA COMPOSICIÓN ---
+  const liquidezPerc = totalNetWorth > 0 ? ((totalLiquidity / totalNetWorth) * 100).toFixed(1) : '0.0';
+  const investPerc = totalNetWorth > 0 ? ((totalInvested / totalNetWorth) * 100).toFixed(1) : '0.0';
 
-  const handleAddAsset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAssetName.trim() || !newAssetBalance || !newAssetAccountId) return;
+  // --- CÁLCULO HISTÓRICO APROXIMADO ---
+  const historyChartData = useMemo(() => {
+    const data = [];
+    let runningBalance = totalNetWorth;
     
-    if (parseFloat(newAssetBalance) < 0) {
-      toast.error('La inversión inicial no puede ser negativa');
-      return;
-    }
-
-    const loadingToast = toast.loading('Creando activo...');
-    try {
-      const token = await getToken();
-      const res = await fetch('http://localhost:3000/assets', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-        body: JSON.stringify({ name: newAssetName, symbol: newAssetSymbol, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) 
+    for (let i = 0; i <= 5; i++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthStr = d.toLocaleString('es-ES', { month: 'short', year: '2-digit' });
+      
+      const txInMonth = allTransactions.filter(tx => {
+        const txDate = new Date(tx.date);
+        return txDate.getMonth() === d.getMonth() && txDate.getFullYear() === d.getFullYear();
       });
       
-      const data = await res.json();
-      
-      if (res.ok) { 
-        setNewAssetName(''); setNewAssetSymbol(''); setNewAssetBalance(''); 
-        toast.success('Activo creado correctamente', { id: loadingToast }); 
-        onDataChange(); 
-      } else {
-        toast.error(data.error || 'Error al crear activo', { id: loadingToast });
-      }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
-  };
+      const netMonth = txInMonth.reduce((acc, tx) => {
+        if (tx.type === 'INCOME') return acc + tx.amount;
+        if (tx.type === 'EXPENSE') return acc - tx.amount;
+        return acc;
+      }, 0);
 
-  const handleDeleteAsset = async (id: number) => {
-    if (!window.confirm('🚨 ¿Eliminar este activo y todos sus registros?')) return;
-    const loadingToast = toast.loading('Eliminando...');
-    try {
-      const token = await getToken();
-      const res = await fetch(`http://localhost:3000/assets/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      
-      if (res.ok) { 
-        toast.success('Activo eliminado', { id: loadingToast }); 
-        onDataChange(); 
-      } else {
-        toast.error(data.error || 'Error al eliminar', { id: loadingToast });
-      }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
-  };
-
-  const handleAddContribution = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contributionAssetId || !contributionAmount || !contributionOriginAccountId) return;
-    
-    if (parseFloat(contributionAmount) <= 0) {
-      toast.error('La aportación debe ser mayor a 0');
-      return;
-    }
-
-    const selectedAsset = allAssets.find((a: any) => a.id.toString() === contributionAssetId);
-    if (!selectedAsset) return;
-    
-    const loadingToast = toast.loading('Registrando aportación...');
-    try {
-      const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-        body: JSON.stringify({ description: selectedAsset.name, amount: parseFloat(contributionAmount), type: 'CONTRIBUTION', accountId: selectedAsset.accountId, assetId: selectedAsset.id, originAccountId: parseInt(contributionOriginAccountId) }) 
+      data.unshift({
+        name: monthStr,
+        patrimonio: runningBalance > 0 ? runningBalance : 0
       });
       
-      const data = await res.json();
-      
-      if (res.ok) { 
-        setContributionAmount(''); 
-        toast.success('Aportación registrada', { id: loadingToast }); 
-        onDataChange(); 
-      } else {
-        toast.error(data.error || 'Error al registrar aportación', { id: loadingToast });
-      }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
-  };
-
-  const handleAddReturn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!returnAssetId || !returnAmount) return;
-
-    if (parseFloat(returnAmount) <= 0) {
-      toast.error('El importe de evolución debe ser mayor a 0');
-      return;
+      runningBalance -= netMonth; 
     }
+    return data;
+  }, [allTransactions, totalNetWorth]);
 
-    const selectedAsset = allAssets.find((a: any) => a.id.toString() === returnAssetId);
-    if (!selectedAsset) return;
-    
-    const loadingToast = toast.loading('Registrando evolución...');
-    try {
-      const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-        body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) 
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) { 
-        setReturnAmount(''); 
-        toast.success('Evolución registrada', { id: loadingToast }); 
-        onDataChange(); 
+
+  // --- LÓGICA DE FILTROS Y GRÁFICAS INFERIORES ---
+  const availableYears = Array.from(new Set(allTransactions.map((tx: any) => new Date(tx.date).getFullYear().toString())));
+  if (!availableYears.includes(currentYearStr)) availableYears.push(currentYearStr);
+  availableYears.sort((a: any, b: any) => b.localeCompare(a));
+
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const fullMonths = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  const txForAnalytics = allTransactions.filter((tx: any) => {
+    const date = new Date(tx.date);
+    const matchYear = analyticsYear === 'ALL' || date.getFullYear().toString() === analyticsYear;
+    const matchMonth = analyticsMonth === 'ALL' || date.getMonth().toString() === analyticsMonth;
+    return matchYear && matchMonth;
+  });
+
+  // Quesitos de Gastos e Ingresos
+  const expensesByCategory = txForAnalytics
+    .filter((tx: any) => tx.type === 'EXPENSE' && tx.category && !tx.assetId)
+    .reduce((acc: any, tx: any) => { acc[tx.category.name] = (acc[tx.category.name] || 0) + tx.amount; return acc; }, {});
+  const pieDataExpenses = Object.keys(expensesByCategory).map((name, i) => ({ name, value: expensesByCategory[name], fill: COLORS[i % COLORS.length] }));
+
+  const incomesByCategory = txForAnalytics
+    .filter((tx: any) => tx.type === 'INCOME' && tx.category && !tx.assetId)
+    .reduce((acc: any, tx: any) => { acc[tx.category.name] = (acc[tx.category.name] || 0) + tx.amount; return acc; }, {});
+  const pieDataIncomes = Object.keys(incomesByCategory).map((name, i) => ({ name, value: incomesByCategory[name], fill: COLORS[(i + 2) % COLORS.length] }));
+
+  // 👇 NUEVO: Quesito de Inversiones por Tipo (Fondo, Cripto, etc.)
+  const assetsByType = allAssets.reduce((acc: any, asset: any) => {
+    const type = asset.symbol || 'Otro'; // Recuerda que metimos el tipo en "symbol"
+    acc[type] = (acc[type] || 0) + asset.balance;
+    return acc;
+  }, {});
+  const pieDataAssetTypes = Object.keys(assetsByType).map((name, i) => ({
+    name, 
+    value: assetsByType[name], 
+    fill: COLORS[(i + 4) % COLORS.length] // Desplazamos colores para que varíen
+  }));
+
+  // 👇 NUEVO: Quesito de Inversiones por Activo Individual
+  const pieDataAssets = allAssets.map((asset: any, index: number) => ({
+    name: asset.name, 
+    value: asset.balance, 
+    fill: COLORS[index % COLORS.length]
+  }));
+
+  const monthlyDataMap = months.map(m => ({ name: m, ingresos: 0, gastos: 0, inversiones: 0 }));
+  allTransactions.forEach((tx: any) => {
+    const date = new Date(tx.date);
+    if (analyticsYear === 'ALL' || date.getFullYear().toString() === analyticsYear) {
+      const monthIndex = date.getMonth();
+      if (tx.assetId) {
+        const change = (tx.type === 'EXPENSE' || tx.type === 'TRANSFER_OUT') ? -tx.amount : tx.amount;
+        monthlyDataMap[monthIndex].inversiones += change;
       } else {
-        toast.error(data.error || 'Error al registrar evolución', { id: loadingToast });
+        if (tx.type === 'INCOME') monthlyDataMap[monthIndex].ingresos += tx.amount;
+        if (tx.type === 'EXPENSE') monthlyDataMap[monthIndex].gastos += tx.amount;
       }
-    } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }
-  };
+    }
+  });
+
+  const yearlyDataMap: any = {};
+  allTransactions.forEach((tx: any) => {
+    const year = new Date(tx.date).getFullYear().toString();
+    if (!yearlyDataMap[year]) yearlyDataMap[year] = { name: year, ingresos: 0, gastos: 0, inversiones: 0 };
+    if (tx.assetId) {
+      const change = (tx.type === 'EXPENSE' || tx.type === 'TRANSFER_OUT') ? -tx.amount : tx.amount;
+      yearlyDataMap[year].inversiones += change;
+    } else {
+      if (tx.type === 'INCOME') yearlyDataMap[year].ingresos += tx.amount;
+      if (tx.type === 'EXPENSE') yearlyDataMap[year].gastos += tx.amount;
+    }
+  });
+  const yearlyData = Object.values(yearlyDataMap).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   return (
-    <div className="grid md:grid-cols-2 gap-8 animate-fade-in transition-colors">
-      <div className="space-y-8">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Añadir Nuevo Activo</h3>
-          <form onSubmit={handleAddAsset} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 border-l-4 border-blue-500 transition-colors">
-            <div className="flex gap-4">
-              <div className="flex-[2] w-full">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre</label>
-                <input type="text" required value={newAssetName} onChange={(e) => setNewAssetName(e.target.value)} placeholder="Ej: S&P 500" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Símbolo (Opc)</label>
-                <input type="text" value={newAssetSymbol} onChange={(e) => setNewAssetSymbol(e.target.value)} placeholder="Ej: SPY" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 uppercase" />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inversión Inicial (€)</label>
-                <input type="number" step="0.01" required value={newAssetBalance} onChange={(e) => setNewAssetBalance(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuenta Asociada</label>
-                <select value={newAssetAccountId} onChange={(e) => setNewAssetAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                  {user.accounts.map((account: any) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer mt-2">Crear Activo</button>
-          </form>
+    <div className="space-y-8 animate-fade-in transition-colors">
+      
+      {/* HERO GLOBAL */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">
+        <div className="p-8 pb-4">
+          <p className="text-blue-600 dark:text-blue-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">Vista Global</p>
+          <h2 className="text-gray-900 dark:text-white text-2xl font-bold mb-1">Patrimonio total</h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Cash, inversiones y evolución histórica en una sola lectura.</p>
+          
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 dark:text-gray-400 text-xs tracking-widest uppercase mb-2">Valor Actual</p>
+            <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 dark:text-white tracking-tight transition-colors">
+              {totalNetWorth.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+            </h1>
+          </div>
         </div>
 
-        <div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Aportación de Capital</h3>
-          <form onSubmit={handleAddContribution} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 border-l-4 border-blue-500 transition-colors">
-            {allAssets.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Añade un activo arriba primero.</p>
-            ) : (
-              <>
-                <div className="flex gap-4">
-                  <div className="flex-[2]">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Invertir en (Destino)</label>
-                    <select value={contributionAssetId} onChange={(e) => setContributionAssetId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">-- Selecciona activo --</option>
-                      {allAssets.map((asset: any) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad (€)</label>
-                    <input type="number" step="0.01" required value={contributionAmount} onChange={(e) => setContributionAmount(e.target.value)} placeholder="0.00" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuenta Origen (El dinero sale de aquí)</label>
-                  <select value={contributionOriginAccountId} onChange={(e) => setContributionOriginAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    {user.accounts.map((account: any) => <option key={account.id} value={account.id}>{account.name} (Disp: {account.balance.toFixed(2)}€)</option>)}
-                  </select>
-                </div>
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer mt-2 disabled:bg-gray-600 disabled:text-gray-400" disabled={!contributionAssetId || !contributionOriginAccountId}>Registrar Aportación</button>
-              </>
-            )}
-          </form>
+        <div className="h-64 w-full mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={historyChartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorPatrimonio" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/> 
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <Tooltip 
+                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: '#e5e7eb', color: '#1f2937', borderRadius: '8px' }}
+                itemStyle={{ color: '#2563eb', fontWeight: 'bold' }}
+                formatter={(value: any) => [`${Number(value || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €`, 'Patrimonio']}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="patrimonio" 
+                stroke="#2563eb" 
+                strokeWidth={3}
+                fillOpacity={1} 
+                fill="url(#colorPatrimonio)" 
+                animationDuration={1500}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="flex justify-between px-8 text-xs text-gray-500 dark:text-gray-400 font-medium -mt-2 pb-6">
+            {historyChartData.map((d, i) => <span key={i}>{d.name}</span>)}
+          </div>
         </div>
 
-        <div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Registrar Rendimiento (Bolsa)</h3>
-          <form onSubmit={handleAddReturn} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 space-y-4 border-l-4 border-green-500 transition-colors">
-            {allAssets.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Añade un activo arriba primero.</p>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selecciona el Activo</label>
-                  <select value={returnAssetId} onChange={(e) => setReturnAssetId(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="">-- Elige un activo --</option>
-                    {allAssets.map((asset: any) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-                  </select>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rendimiento neto (€)</label>
-                    <input type="number" step="0.01" required value={returnAmount} onChange={(e) => setReturnAmount(e.target.value)} placeholder="Ej: 50.00" className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-green-500" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Evolución</label>
-                    <select value={returnType} onChange={(e) => setReturnType(e.target.value)} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg p-2 outline-none focus:ring-2 focus:ring-green-500 font-bold">
-                      <option value="INCOME" className="text-green-600 dark:text-green-400">📈 Sube (Plusvalía)</option>
-                      <option value="EXPENSE" className="text-red-600 dark:text-red-400">📉 Baja (Minusvalía)</option>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" className="w-full bg-gray-800 dark:bg-gray-600 text-white font-bold py-3 rounded-lg hover:bg-black dark:hover:bg-gray-500 transition-colors cursor-pointer mt-2 disabled:bg-gray-700 disabled:text-gray-500" disabled={!returnAssetId}>Guardar Evolución</button>
-              </>
-            )}
-          </form>
+        <div className="p-8 pt-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 transition-colors">
+          <p className="text-gray-500 dark:text-gray-400 text-xs tracking-widest uppercase mb-4">Composición</p>
+          <div className="flex items-center justify-between text-gray-900 dark:text-white font-medium mb-3">
+            <span>De qué está hecho</span>
+          </div>
+          
+          <div className="w-full h-3 flex rounded-full overflow-hidden mb-4 bg-gray-200 dark:bg-gray-700">
+            <div style={{ width: `${liquidezPerc}%` }} className="bg-blue-500 h-full transition-all duration-500"></div>
+            <div style={{ width: `${investPerc}%` }} className="bg-indigo-400 h-full transition-all duration-500"></div>
+          </div>
+          
+          <div className="flex gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+              <span className="text-gray-600 dark:text-gray-400">Liquidez <span className="text-gray-900 dark:text-white font-bold ml-1">{liquidezPerc}%</span></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-indigo-400"></span>
+              <span className="text-gray-600 dark:text-gray-400">Inversión <span className="text-gray-900 dark:text-white font-bold ml-1">{investPerc}%</span></span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div>
-        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Tu Cartera de Inversión</h3>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-100 dark:border-gray-700 overflow-hidden sticky top-8 transition-colors">
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 border-b border-blue-100 dark:border-blue-800 flex justify-between items-center transition-colors">
-            <span className="font-bold text-blue-900 dark:text-blue-200">Total Invertido</span>
-            <span className="text-2xl font-black text-blue-700 dark:text-blue-400">{totalInvested.toFixed(2)} €</span>
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow border border-gray-100 dark:border-gray-700 flex flex-wrap gap-4 items-center transition-colors">
+        <span className="font-bold text-gray-800 dark:text-white uppercase text-sm tracking-wider">Filtros de Análisis:</span>
+        <select value={analyticsYear} onChange={(e) => setAnalyticsYear(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="ALL">Todos los años</option>
+          {availableYears.map((y: any) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select value={analyticsMonth} onChange={(e) => setAnalyticsMonth(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="ALL">Todos los meses</option>
+          {fullMonths.map((m, i) => <option key={i} value={i.toString()}>{m}</option>)}
+        </select>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Balance Mensual</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyDataMap} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#9ca3af" />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} stroke="#9ca3af" />
+                <Tooltip cursor={{fill: 'transparent'}} formatter={(v: any) => `${Number(v).toFixed(2)} €`} />
+                <ReferenceLine y={0} stroke="#6b7280" />
+                <Legend />
+                <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="Ingresos" />
+                <Bar dataKey="gastos" fill="#ef4444" radius={[4, 4, 0, 0]} name="Gastos" />
+                <Bar dataKey="inversiones" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Inversiones" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          {allAssets.length === 0 ? (
-            <div className="p-10 text-center text-gray-500 dark:text-gray-400">Aún no tienes activos registrados.</div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {allAssets.map((asset: any) => (
-                <div key={asset.id} className="p-5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex justify-between items-center">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-800 dark:text-white text-lg">{asset.name}</p>
-                      {asset.symbol && <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded font-bold tracking-wider">{asset.symbol}</span>}
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">🏦 En: {asset.accountName}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{asset.balance.toFixed(2)} €</p>
-                    <button onClick={() => handleDeleteAsset(asset.id)} className="text-gray-300 hover:text-red-500 dark:hover:text-red-400 font-bold p-2 cursor-pointer text-lg" title="Borrar activo y su historial">✕</button>
-                  </div>
-                </div>
-              ))}
+        </div>
+
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Histórico Anual Global</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={yearlyData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#9ca3af" />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}€`} stroke="#9ca3af" />
+                <Tooltip cursor={{fill: 'transparent'}} formatter={(v: any) => `${Number(v).toFixed(2)} €`} />
+                <ReferenceLine y={0} stroke="#6b7280" />
+                <Legend />
+                <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="Ingresos" />
+                <Bar dataKey="gastos" fill="#ef4444" radius={[4, 4, 0, 0]} name="Gastos" />
+                <Bar dataKey="inversiones" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Inversiones" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Gastos por Categoría</h3>
+          {pieDataExpenses.length > 0 ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataExpenses} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
+          ) : <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-500 transition-colors">Sin datos de gastos</div>}
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Ingresos por Categoría</h3>
+          {pieDataIncomes.length > 0 ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieDataIncomes} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" /><Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} /><Legend /></PieChart></ResponsiveContainer></div>
+          ) : <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-500 transition-colors">Sin datos de ingresos</div>}
+        </div>
+      </div>
+
+      {/* 👇 NUEVA FILA: COMPOSICIÓN DE LA CARTERA DE INVERSIÓN 👇 */}
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Inversiones por Tipo</h3>
+          {pieDataAssetTypes.length > 0 ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieDataAssetTypes} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" />
+                  <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-500 transition-colors">Sin datos de inversión</div>
+          )}
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Activos Individuales</h3>
+          {pieDataAssets.length > 0 ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 transition-colors">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieDataAssets} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" />
+                  <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} €`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700 h-80 flex justify-center items-center text-gray-500 transition-colors">Sin datos de inversión</div>
           )}
         </div>
       </div>
+
     </div>
   );
 }

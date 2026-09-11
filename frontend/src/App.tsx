@@ -102,11 +102,11 @@ function App() {
                 setIsDarkMode={setIsDarkMode} 
               />
 
-              {activeTab === 'dashboard' && <DashboardView user={user} categories={categories} recentTransactions={recentTransactions} totalNetWorth={totalNetWorth} totalLiquidity={totalLiquidity} totalInvested={totalInvested} onDataChange={refreshAllData} />}
-              {activeTab === 'transactions' && <TransactionsView allTransactions={allTransactions} categories={categories} onDataChange={refreshAllData} />}
+              {activeTab === 'dashboard' && (<DashboardView user={user} categories={categories} recentTransactions={recentTransactions}totalNetWorth={totalNetWorth} totalLiquidity={totalLiquidity} totalInvested={totalInvested} onDataChange={refreshAllData} onNavigateToAccounts={() => setActiveTab('accounts')}/>)}
+              {activeTab === 'transactions' && <TransactionsView allTransactions={allTransactions} categories={categories} accounts={user.accounts} onDataChange={refreshAllData} />}
               {activeTab === 'investments' && <InvestmentsView user={user} allAssets={allAssets} totalInvested={totalInvested} onDataChange={refreshAllData} />}
               {activeTab === 'accounts' && <AccountsView user={user} onDataChange={refreshAllData} />}
-              {activeTab === 'analytics' && <AnalyticsView allTransactions={allTransactions} allAssets={allAssets} />}
+              {activeTab === 'analytics' && <AnalyticsView allTransactions={allTransactions} allAssets={allAssets} totalNetWorth={totalNetWorth} totalLiquidity={totalLiquidity} totalInvested={totalInvested} />}
             </div>
           </div>
         ) : (
