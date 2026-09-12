@@ -45,6 +45,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.get('/health', (req, res) => {
+  res.status(200).send('API de Fintracker funcionando correctamente 🐉');
+});
 app.use(ClerkExpressRequireAuth() as any);
 
 // 1. Ruta de prueba (Health check)
