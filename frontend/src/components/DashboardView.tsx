@@ -45,7 +45,7 @@ export default function DashboardView({ user, categories, recentTransactions, to
     
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/transactions', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify(newTransaction) 
@@ -72,7 +72,7 @@ export default function DashboardView({ user, categories, recentTransactions, to
     const loadingToast = toast.loading('Creando...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/categories', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/categories', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`}, 
         body: JSON.stringify({ name: newCategoryName.trim() }) 
@@ -95,7 +95,7 @@ export default function DashboardView({ user, categories, recentTransactions, to
     const loadingToast = toast.loading('Eliminando...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/categories/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`https://fintracker-api-9k8t.onrender.com/categories/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) { toast.success('Categoría eliminada', { id: loadingToast }); onDataChange(); }
       else { toast.error('Error al eliminar', { id: loadingToast }); }
     } catch (err) { toast.error('Error de conexión', { id: loadingToast }); }

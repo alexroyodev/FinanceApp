@@ -24,7 +24,7 @@ export default function AccountsView({ user, onDataChange }: AccountsViewProps) 
     const loadingToast = toast.loading('Creando cuenta...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/accounts', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/accounts', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ name: newAccountName.trim(), balance: parseFloat(newAccountBalance), userId: user.id }) 
@@ -51,7 +51,7 @@ export default function AccountsView({ user, onDataChange }: AccountsViewProps) 
     const loadingToast = toast.loading('Eliminando cuenta...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/accounts/${id}`, { 
+      const res = await fetch(`https://fintracker-api-9k8t.onrender.com/accounts/${id}`, { 
         method: 'DELETE', 
         headers: { Authorization: `Bearer ${token}` } 
       });

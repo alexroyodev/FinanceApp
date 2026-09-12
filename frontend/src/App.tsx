@@ -34,7 +34,7 @@ function App() {
   const fetchUserData = async () => {
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/users/me', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/users/me', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data) setUser(data);
     } catch (err) { console.error('Error al cargar datos:', err); }
@@ -43,7 +43,7 @@ function App() {
   const fetchCategories = async () => {
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/categories', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/categories', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data) setCategories(data);
     } catch (err) { console.error('Error al cargar categorías:', err); }

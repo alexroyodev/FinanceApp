@@ -48,7 +48,7 @@ export default function InvestmentsView({ user, allAssets = [], totalInvested = 
     const loadingToast = toast.loading('Creando activo...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/assets', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/assets', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ name: newAssetName, symbol: newAssetType, balance: parseFloat(newAssetBalance), accountId: parseInt(newAssetAccountId) }) 
@@ -71,7 +71,7 @@ export default function InvestmentsView({ user, allAssets = [], totalInvested = 
     const loadingToast = toast.loading('Eliminando...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/assets/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`https://fintracker-api-9k8t.onrender.com/assets/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       
       if (res.ok) { 
@@ -98,7 +98,7 @@ export default function InvestmentsView({ user, allAssets = [], totalInvested = 
     const loadingToast = toast.loading('Registrando aportación...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/transactions', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ description: selectedAsset.name, amount: parseFloat(contributionAmount), type: 'CONTRIBUTION', accountId: selectedAsset.accountId, assetId: selectedAsset.id, originAccountId: parseInt(contributionOriginAccountId) }) 
@@ -131,7 +131,7 @@ export default function InvestmentsView({ user, allAssets = [], totalInvested = 
     const loadingToast = toast.loading('Registrando evolución...');
     try {
       const token = await getToken();
-      const res = await fetch('http://localhost:3000/transactions', { 
+      const res = await fetch('https://fintracker-api-9k8t.onrender.com/transactions', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ description: `Rendimiento: ${selectedAsset.name}`, amount: parseFloat(returnAmount), type: returnType, accountId: selectedAsset.accountId, assetId: selectedAsset.id }) 

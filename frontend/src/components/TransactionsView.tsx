@@ -23,7 +23,7 @@ export default function TransactionsView({ allTransactions, categories, accounts
     const loadingToast = toast.loading('Eliminando...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/transactions/${id}`, { 
+      const res = await fetch(`https://fintracker-api-9k8t.onrender.com/transactions/${id}`, { 
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -44,7 +44,7 @@ export default function TransactionsView({ allTransactions, categories, accounts
     const loadingToast = toast.loading('Actualizando...');
     try {
       const token = await getToken();
-      const res = await fetch(`http://localhost:3000/transactions/${txId}/category`, { 
+      const res = await fetch(`https://fintracker-api-9k8t.onrender.com/transactions/${txId}/category`, { 
         method: 'PATCH', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ categoryId: newCatId }) 
