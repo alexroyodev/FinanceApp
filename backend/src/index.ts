@@ -404,6 +404,19 @@ app.delete('/assets/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Manejador de errores global (Debe ir siempre al final de todas las rutas)
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('Error en el servidor:', err.message || err);
+  
+  // Si el error es de Clerk (Unauthenticated)
+  if (err.message === 'Unauthenticated') {
+    return res.status(401).json({ error: 'No autorizado / Token inválido' });
+  }
+  
+  // Para cualquier otro error
+  res.status(500).json({ error: 'Error interno del servidor' });
+});
+
 // Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
