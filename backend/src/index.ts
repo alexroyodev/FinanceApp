@@ -4,6 +4,7 @@ import cors from 'cors';
 import 'dotenv/config';
 import { ClerkExpressRequireAuth, RequireAuthProp, clerkClient } from '@clerk/clerk-sdk-node';
 import { z } from 'zod';
+import helmet from 'helmet';
 
 // 👇 ESQUEMAS DE VALIDACIÓN ZOD (La Fortaleza)
 const transactionSchema = z.object({
@@ -43,6 +44,9 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors());
 app.use(express.json());
 app.get('/health', (req, res) => {
