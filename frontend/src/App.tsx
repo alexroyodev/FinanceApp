@@ -65,18 +65,19 @@ function App() {
   };
 
   // --- MATEMÁTICAS PRINCIPALES ---
-  const allAssets = user ? user.accounts.flatMap((acc: any) => (acc.assets || []).map((asset: any) => ({ ...asset, accountName: acc.name }))) : [];
+  // Añadimos la interrogación (?.) para que no pete si user.accounts no existe aún
+  const allAssets = user?.accounts?.flatMap((acc: any) => (acc.assets || []).map((asset: any) => ({ ...asset, accountName: acc.name }))) || [];
   
-  // 1. La liquidez ahora es directamente el dinero que queda en tus cuentas (porque el backend ya lo resta)
-  const totalLiquidity = user ? user.accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0) : 0;
+  // 1. La liquidez ahora es directamente el dinero que queda en tus cuentas
+  const totalLiquidity = user?.accounts?.reduce((sum: number, acc: any) => sum + acc.balance, 0) || 0;
   
   // 2. Lo invertido es la suma de tus activos
-  const totalInvested = allAssets.reduce((sum: number, asset: any) => sum + asset.balance, 0);
+  const totalInvested = allAssets.reduce((sum: number, asset: any) => sum + (asset.balance || 0), 0);
   
   // 3. El patrimonio total es la suma de tu liquidez más tus inversiones
   const totalNetWorth = totalLiquidity + totalInvested;
 
-  const allTransactions = user ? user.accounts.flatMap((acc: any) => acc.transactions || []) : [];
+  const allTransactions = user?.accounts?.flatMap((acc: any) => acc.transactions || []) || [];
   allTransactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const recentTransactions = allTransactions.slice(0, 5);
 
